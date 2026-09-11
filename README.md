@@ -5,12 +5,22 @@ par un PIN a 4 chiffres, et son client depose ses pieces sans compte.
 NestJS + Chakra UI v3 + PostgreSQL + MinIO, conteneurise, avec Prometheus/Grafana
 pour l'observabilite.
 
-**Demo en ligne :** `https://<a-completer-apres-deploiement>`
-*(voir "Deploiement" plus bas - le sous-domaine et la plage de ports du
-serveur partage sont fournis par email au candidat et n'etaient pas
-disponibles dans l'environnement ou ce depot a ete prepare ; le stack a
-neanmoins ete construit, publie sur GHCR et valide pour tourner tel quel
-une fois ces identifiants renseignes dans `.env`.)*
+## Demo en ligne
+
+**<https://daniel-nagoloum.stage2-div.rayan-drissi.com>**
+
+| | |
+|---|---|
+| Application (avocat) | <https://daniel-nagoloum.stage2-div.rayan-drissi.com> |
+| Lien de depot seede (client, anonyme) | <https://daniel-nagoloum.stage2-div.rayan-drissi.com/d/8f3a2c1b4d5e6f70> - PIN `1234` |
+| Grafana | <https://daniel-nagoloum.stage2-div.rayan-drissi.com/grafana/> |
+| Prometheus | <https://daniel-nagoloum.stage2-div.rayan-drissi.com/prometheus/> |
+
+Compte avocat de demonstration : `avocat@demo.dev` / `Demo1234!`
+
+Certificat Let's Encrypt (production, renouvellement automatique), TLS
+termine par notre propre nginx derriere le proxy frontal en passthrough
+SNI. Images tirees depuis GHCR : aucun code source ni build sur le serveur.
 
 ## Demarrage rapide
 
@@ -288,10 +298,27 @@ commentaires dans `infra/alertmanager/alertmanager.yml`).
 `.github/workflows/publish.yml` construit et publie
 `ghcr.io/<owner>/portail-backend` et `ghcr.io/<owner>/portail-frontend` a
 chaque push sur `main` (tags `latest` + sha court), avec le `GITHUB_TOKEN`
-integre - aucun secret a configurer. **Apres le premier push**, verifier
-que les deux packages GHCR sont publics (ou configurer un `docker login
-ghcr.io` sur le serveur) pour que `docker compose pull` fonctionne sans
-authentification.
+integre - aucun secret a configurer.
+
+**Etat reel** : GitHub Actions est desactive sur ce compte ("GitHub Actions
+is currently disabled for this repository"), donc ce workflow n'a jamais
+pu s'executer et la CI n'a pas tourne non plus. Les images en ligne ont
+donc ete construites en local et poussees a la main :
+
+```bash
+docker login ghcr.io -u <user>            # PAT avec le scope write:packages
+SHA=$(git rev-parse --short HEAD)
+for c in backend frontend; do
+  docker build -t ghcr.io/<owner>/portail-$c:latest -t ghcr.io/<owner>/portail-$c:$SHA ./$c
+  docker push ghcr.io/<owner>/portail-$c:latest
+  docker push ghcr.io/<owner>/portail-$c:$SHA
+done
+```
+
+Les deux packages doivent ensuite etre passes en **public** (Package
+settings -> Change visibility ; l'API REST ne le permet pas pour les
+container packages), sinon `./install.sh` echoue au `pull` sur une machine
+vierge. Les images publiees correspondent au commit `bac40b1`.
 
 ### Serveur partage : routage
 
@@ -343,23 +370,27 @@ Le renouvellement est automatique (conteneur `certbot` avec une boucle
 `certbot renew` toutes les 12h, montage `/etc/letsencrypt` partage avec
 `edge`).
 
-**Important sur cet environnement de preparation** : cette session a ete
-executee dans un environnement isole sans acces au serveur partage reel
-(pas d'identifiants, pas de sous-domaine, pas d'acces SSH sortant). Le
-stack de deploiement ci-dessus a ete valide autant que possible sans ce
-serveur (voir "Limites connues"), mais la mise en ligne effective sur le
-sous-domaine assigne reste a faire avec les vrais identifiants.
+Ce qui vit sur le serveur : `infra/` et `.env`, rien d'autre. Pas de code
+source, pas de `git clone`, pas de build - `docker compose pull` uniquement
+(verifiable : `ls ~/portail` n'y contient que `infra/` et `.env`).
+
+Ports reellement alloues pour ce deploiement (plage 21700-21799) :
+`21700` edge HTTP, `21701` edge HTTPS, `21702` frontend, `21703` backend,
+`21704` Prometheus, `21705` Alertmanager, `21706` Grafana - tous sur
+`127.0.0.1`, seuls les deux premiers etant routes depuis Internet.
 
 ## Limites connues
 
-- **Docker non testable en conteneur imbrique** : cet environnement de
-  travail ne permet pas de lancer un daemon Docker (sandbox sans
-  Docker-in-Docker). Chaque service a ete valide individuellement dans son
-  environnement natif (`npm test`/`npm run build` pour le backend et le
-  frontend, captures d'ecran via Chromium pour le rendu) et la syntaxe des
-  fichiers `docker-compose.*.yml` a ete verifiee avec `docker compose
-  config`, mais un `./install.sh` complet de bout en bout n'a pas pu etre
-  execute ici. A verifier en premier sur la machine de correction.
+- **Pas de test automatise du parcours complet (e2e)** : le parcours
+  `login -> creation -> unlock -> depot` a ete verifie a la main, en local
+  puis en production, mais aucun test ne le rejoue automatiquement. C'est
+  la limite qui a coute le plus cher ici : le code a d'abord ete ecrit sans
+  jamais etre execute, et quatre pannes bloquantes (image MinIO introuvable,
+  fins de ligne CRLF, colonne TypeORM non mappable, controle magic-bytes
+  qui levait une exception a chaque depot) n'ont ete trouvees qu'en lancant
+  reellement `./install.sh`. Deux tests de non-regression comblent les deux
+  dernieres ; un vrai test e2e (Testcontainers ou un job CI avec services
+  postgres+minio) serait la suite logique.
 - **Verification de type plutot qu'antivirus** : les fichiers sont
   verifies par allow-list + signature binaire (magic bytes), pas par un
   moteur antivirus (ClamAV). Un fichier PDF/JPG/PNG structurellement valide

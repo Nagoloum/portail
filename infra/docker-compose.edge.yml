@@ -20,6 +20,18 @@ services:
       GF_SERVER_ROOT_URL: https://${DOMAIN}/grafana/
       GF_SERVER_SERVE_FROM_SUB_PATH: 'true'
 
+  # Served under /prometheus/ on the single public hostname. external-url
+  # rewrites the links and redirects Prometheus generates; route-prefix=/
+  # keeps it listening at the root, which is both what the edge sends it
+  # (it strips the prefix with a rewrite, see nginx/edge.conf.template) and
+  # what its own self-scrape of localhost:9090/metrics needs.
+  prometheus:
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.external-url=https://${DOMAIN}/prometheus/'
+      - '--web.route-prefix=/'
+
   edge:
     image: nginx:1.27-alpine
     restart: unless-stopped

@@ -46,17 +46,33 @@ server {
   # in our range are actually internet-routed (see README "Routage").
   # Grafana/Prometheus own auth (Grafana login, see README) is the access
   # control here - there is no third public hostname to hide them behind.
+  # No trailing slash on proxy_pass: the prefix is NOT stripped. Grafana
+  # runs with GF_SERVER_SERVE_FROM_SUB_PATH=true and a root_url ending in
+  # /grafana/, so it expects to receive the prefix. Stripping it made
+  # Grafana redirect / to its root_url on every request - an infinite 301
+  # loop on /grafana/.
   location /grafana/ {
     set $upstream_grafana grafana;
-    proxy_pass http://$upstream_grafana:3000/;
+    proxy_pass http://$upstream_grafana:3000;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto https;
   }
 
+  # Prometheus is the mirror image of Grafana. It keeps serving at the root
+  # internally (--web.route-prefix=/, see docker-compose.edge.yml) so that
+  # its own self-scrape of localhost:9090/metrics keeps working, and only
+  # the links it generates carry the public prefix (--web.external-url).
+  # The prefix must therefore be stripped here - and a URI on proxy_pass
+  # does not strip anything when the upstream is a variable (nginx then
+  # forwards the URI untouched), so the rewrite does it explicitly.
   location /prometheus/ {
+    # `set` must come before `rewrite ... break`: both run in the rewrite
+    # phase, and `break` ends it - a `set` placed after never executes, and
+    # nginx then proxies to an empty host ("no host in upstream :9090").
     set $upstream_prometheus prometheus;
-    proxy_pass http://$upstream_prometheus:9090/;
+    rewrite ^/prometheus/(.*)$ /$1 break;
+    proxy_pass http://$upstream_prometheus:9090;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto https;

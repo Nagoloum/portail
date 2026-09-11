@@ -52,7 +52,7 @@ Identifiants de demonstration (aussi affiches en fin d'installation) :
 backend/    NestJS (API, logique metier, migrations, tests Jest)
 frontend/   React + Vite + Chakra UI v3
 infra/      docker-compose, Prometheus, Grafana, nginx, certbot
-ai-logs/    export des echanges avec l'IA pour cet exercice
+ai-logs/    export des echanges avec l'IA pour cet exercice (2 sessions)
 install.sh  installation one-click
 ```
 
@@ -411,4 +411,11 @@ Ports reellement alloues pour ce deploiement (plage 21700-21799) :
 
 ## ai-logs/
 
-Export des echanges avec l'IA pour cet exercice, voir `ai-logs/README.md`.
+`ai-logs/session-discussion.md` contient l'integralite des echanges IA de cet
+exercice : la session 1 (qui a produit tout le code, sans jamais l'executer) et
+le transcript complet de la session 2 (qui l'a execute, corrige quatre pannes
+bloquantes et deploye). Une section d'annotations confronte le recit de la
+premiere a ce que l'execution a reellement montre.
+
+Le caviardage est fait par `ai-logs/export-transcript.js` ; details et
+limites dans `ai-logs/README.md`.

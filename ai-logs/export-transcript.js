@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Converts a Claude Code .jsonl transcript into the readable markdown
- * exports in this folder, redacting secrets on the way out.
+ * export in this folder, redacting secrets on the way out.
  *
  * Claude Code's own /export writes the raw transcript of an *interactive*
  * terminal session; this does the same job from the on-disk transcript
@@ -11,6 +11,13 @@
  * Usage:
  *   REDACT_EXTRA='secret1,secret2' \
  *     node ai-logs/export-transcript.js <input.jsonl> <output.md>
+ *
+ * The output file is a single deliverable holding both sessions: a
+ * hand-written part 1 (the mobile session, which has no machine-readable
+ * transcript) followed by this generated part 2. To keep both in one file
+ * and still allow regeneration, everything ABOVE the marker below is
+ * preserved as-is when the output file already exists; only what follows
+ * is rewritten.
  *
  * Secrets are never hardcoded here: pass them through REDACT_EXTRA so this
  * script can live in the repository without leaking what it redacts.
@@ -50,17 +57,27 @@ const redact = (s) => REDACTIONS.reduce((acc, [re, by]) => acc.replace(re, by), 
 const truncate = (s, max) =>
   s.length > max ? `${s.slice(0, max)}\n[... ${s.length - max} caracteres tronques ...]` : s;
 
+const MARKER = '<!-- TRANSCRIPT GENERE AUTOMATIQUEMENT - NE RIEN ECRIRE SOUS CETTE LIGNE -->';
+
 const lines = fs.readFileSync(inPath, 'utf8').split('\n').filter(Boolean);
 const out = [];
 
-out.push('# Export de session - Claude Code (VS Code), modele Opus 5');
-out.push('');
-out.push("Session dediee a l'exercice DIV \"Portail de depot de pieces\".");
-out.push('Genere depuis le transcript local Claude Code par `ai-logs/export-transcript.js`.');
-out.push('Les secrets (mot de passe du serveur, tokens, JWT, cles privees) sont caviardes');
-out.push("automatiquement. Les sorties d'outils tres longues sont tronquees pour rester lisibles.");
-out.push('');
-out.push('---');
+// Preserve the hand-written part of the deliverable (everything down to
+// the marker) so a regeneration never loses it.
+if (fs.existsSync(outPath)) {
+  const existing = fs.readFileSync(outPath, 'utf8');
+  const at = existing.indexOf(MARKER);
+  if (at === -1) {
+    console.error(`refus: ${outPath} existe mais ne contient pas le marqueur - regeneration annulee`);
+    process.exit(1);
+  }
+  out.push(existing.slice(0, at + MARKER.length));
+} else {
+  out.push('# Export de session - Claude Code (VS Code), modele Opus 5');
+  out.push('');
+  out.push("Session dediee a l'exercice DIV \"Portail de depot de pieces\".");
+  out.push(MARKER);
+}
 out.push('');
 
 for (const line of lines) {

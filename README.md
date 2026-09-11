@@ -191,9 +191,17 @@ la base seule ne suffit pas a le retrouver hors-ligne (voir
   limiting global (`@nestjs/throttler`, 120 req/min/IP) qui ralentit toute
   automatisation avant meme d'atteindre la logique metier.
 - **Fichiers** : allow-list de types (PDF/JPG/PNG), **verification par
-  signature binaire** (magic bytes via `file-type`, pas seulement le
-  `Content-Type` declare par le navigateur) - un `.exe` renomme en `.pdf`
-  est rejete. Voir "Limites connues" pour ce qui n'est *pas* couvert
+  signature binaire** (magic bytes, pas seulement le `Content-Type`
+  declare par le navigateur) - un `.exe` renomme en `.pdf` est rejete.
+  La detection est faite a la main (`files/file-validation.util.ts`, une
+  table de trois signatures specifiees : ISO 32000-1 pour le PDF, marqueur
+  SOI pour le JPEG, RFC 2083 pour le PNG) plutot qu'avec le paquet
+  `file-type` : celui-ci est ESM-only depuis la v17, or le backend compile
+  en CommonJS, donc TypeScript reecrivait l'`await import()` en `require()`
+  et le controle levait `ERR_PACKAGE_PATH_NOT_EXPORTED` a chaque depot -
+  un controle de securite qui ne s'execute jamais en production est le pire
+  des cas. Trois formats fixes ne justifiaient ni la dependance ni le
+  risque. Voir "Limites connues" pour ce qui n'est *pas* couvert
   (antivirus reel).
 - **Stockage** : MinIO n'est jamais expose au reseau (ni a Internet, ni au
   navigateur) ; seul le backend y accede, sur le reseau docker interne.
@@ -217,8 +225,22 @@ pouvoir controler l'horloge et l'etat sans base de donnees :
 - `public/public.service.spec.ts` - integration au niveau service (repository
   mocke) du flux `unlock` complet : succes, echec, verrouillage apres N
   tentatives, refus sur lien expire.
+- `files/file-validation.util.spec.ts` - allow-list de types et detection
+  par signature binaire, dont le cas qui motive ce controle (executable
+  renome `.pdf`) et les buffers trop courts.
+- `database/entity-metadata.spec.ts` - construit les metadonnees TypeORM
+  sans base de donnees.
 
-`cd backend && npm test` (30 tests). La CI (`.github/workflows/ci.yml`)
+Ces deux derniers fichiers sont des **tests de non-regression ecrits apres
+coup**, et c'est la limite qu'ils documentent : les specs d'origine
+testaient de la logique pure avec des repositories mockes, donc rien
+n'exercait la couche de mapping ni le controle de type. Deux bugs ont
+survecu a une suite verte et ne sont apparus qu'en lancant la stack
+(`DataTypeNotSupportedError` au demarrage, `ERR_PACKAGE_PATH_NOT_EXPORTED`
+a chaque depot). Tester la logique metier isolement est necessaire et pas
+suffisant : il faut au moins un test par couche d'adaptation.
+
+`cd backend && npm test` (37 tests). La CI (`.github/workflows/ci.yml`)
 lance ces tests + le build des deux apps a chaque push/PR.
 
 ## Observabilite

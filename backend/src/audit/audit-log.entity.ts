@@ -27,10 +27,12 @@ export class AuditLog {
   @Column({ type: 'enum', enum: AuditAction })
   action: AuditAction;
 
-  @Column({ nullable: true })
+  // Explicit types: a `string | null` property reflects as Object, which
+  // TypeORM refuses to map (see deposit-file.entity.ts).
+  @Column({ type: 'varchar', nullable: true })
   ip: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   userAgent: string | null;
 
   @Column({ type: 'jsonb', nullable: true })

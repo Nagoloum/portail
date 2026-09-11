@@ -5,7 +5,6 @@ import { DepositRequest } from '../../requests/deposit-request.entity';
 import { DepositRequestStatus } from '../../requests/request-status.enum';
 import { hashPassword } from '../../common/security/password.util';
 import { hashPin } from '../../common/security/pin.util';
-import { generateRequestToken } from '../../common/security/token.util';
 
 /**
  * Idempotent: safe to run on every deploy (install.sh calls it after each
@@ -42,11 +41,17 @@ async function seed() {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 4);
 
+    // Fixed token for the seeded request only, so install.sh can print a
+    // clickable client link at the end of a fresh install. Every request
+    // created through the API still gets a random token from
+    // generateRequestToken() - see requests.service.ts.
+    const seededToken = process.env.SEED_REQUEST_TOKEN || '8f3a2c1b4d5e6f70';
+
     await requestRepo.save(
       requestRepo.create({
         lawyerId: lawyer.id,
         title: 'Dossier Martin, pieces 2026',
-        token: generateRequestToken(),
+        token: seededToken,
         pinHash: await hashPin('1234', pepper),
         requiredCount: 4,
         expiresAt,

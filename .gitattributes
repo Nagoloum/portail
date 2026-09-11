@@ -1,0 +1,13 @@
+# Shell scripts and config files end up inside Linux containers (see
+# backend/Dockerfile ENTRYPOINT, install.sh, infra/certbot/*.sh). A CRLF
+# checkout on Windows turns `#!/bin/sh` into `#!/bin/sh\r`, and the
+# container dies with "exec ./entrypoint.sh: no such file or directory".
+# Force LF in the working tree on every platform.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.woff binary
+*.woff2 binary

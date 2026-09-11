@@ -32,7 +32,11 @@ export class DepositFile {
   @Column()
   declaredMimeType: string;
 
-  @Column({ nullable: true })
+  // `type` is explicit on every nullable column: TypeScript reflects a
+  // `string | null` property as design:type Object, which TypeORM cannot
+  // map to a postgres type - it throws DataTypeNotSupportedError at
+  // DataSource.initialize(), i.e. before the first migration runs.
+  @Column({ type: 'varchar', nullable: true })
   detectedMimeType: string | null;
 
   @Column({ type: 'bigint' })

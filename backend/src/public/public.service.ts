@@ -17,7 +17,7 @@ import { DepositRequestStatus } from '../requests/request-status.enum';
 import { RequestStatusService } from '../requests/request-status.service';
 import { FilesService } from '../files/files.service';
 import { StorageService } from '../files/storage.service';
-import { isAllowedMimeType } from '../files/file-validation.util';
+import { detectMimeTypeFromBytes, isAllowedMimeType } from '../files/file-validation.util';
 import { AuditAction } from '../audit/audit-log.entity';
 import { AuditContext, AuditService } from '../audit/audit.service';
 import { MetricsService } from '../metrics/metrics.service';
@@ -159,27 +159,25 @@ export class PublicService {
     // This is our "verification de type" line of defense (renamed .exe as
     // .pdf, corrupted uploads, etc.) - see README for why we did not wire
     // a full antivirus engine (ClamAV) into this exercise.
-    // `file-type` is ESM-only, hence the dynamic import from this CJS build.
-    const { fileTypeFromBuffer } = await import('file-type');
-    const detected = await fileTypeFromBuffer(file.buffer);
-    if (!detected || !isAllowedMimeType(detected.mime)) {
+    const detected = detectMimeTypeFromBytes(file.buffer);
+    if (!detected) {
       this.metrics.filesRejectedTotal.inc({ reason: 'type' });
       await this.audit.record(request.id, AuditAction.FILE_REJECTED, ctx, {
         reason: 'magic_bytes_mismatch',
         declared: file.mimetype,
-        detected: detected?.mime ?? null,
+        detected: null,
       });
       throw new UnprocessableEntityException('Le contenu du fichier ne correspond pas a un PDF, JPG ou PNG valide');
     }
 
     const storageKey = generateStorageKey(request.id, uuidv4(), file.originalname);
-    await this.storage.putObject(storageKey, file.buffer, detected.mime);
+    await this.storage.putObject(storageKey, file.buffer, detected);
 
     const saved = await this.filesService.recordUpload({
       requestId: request.id,
       originalName: file.originalname,
       declaredMimeType: file.mimetype,
-      detectedMimeType: detected.mime,
+      detectedMimeType: detected,
       size: file.size,
       storageKey,
     });

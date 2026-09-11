@@ -95,7 +95,10 @@ cat <<EOF
   Compte avocat de demonstration
     email    ${SEED_LAWYER_EMAIL:-avocat@demo.dev}
     password ${SEED_LAWYER_PASSWORD:-Demo1234!}
-    Une demande "Dossier Martin, pieces 2026" (PIN: 1234) est deja seedee.
+
+  Parcours client (anonyme) sur la demande seedee "Dossier Martin, pieces 2026"
+    lien  http://localhost:${APP_HTTP_PORT:-8080}/d/${SEED_REQUEST_TOKEN:-8f3a2c1b4d5e6f70}
+    PIN   1234  (4 pieces attendues)
 
   Arreter la stack : docker compose --env-file .env -f infra/docker-compose.yml down
   Voir les logs     : docker compose --env-file .env -f infra/docker-compose.yml logs -f

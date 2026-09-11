@@ -250,8 +250,10 @@ survecu a une suite verte et ne sont apparus qu'en lancant la stack
 a chaque depot). Tester la logique metier isolement est necessaire et pas
 suffisant : il faut au moins un test par couche d'adaptation.
 
-`cd backend && npm test` (37 tests). La CI (`.github/workflows/ci.yml`)
-lance ces tests + le build des deux apps a chaque push/PR.
+`cd backend && npm test` (37 tests), ou `make verify` pour rejouer
+exactement la sequence de `.github/workflows/ci.yml` (installation propre,
+build et tests des deux applications). Le workflow lui-meme n'a jamais pu
+s'executer : voir "Registre d'images" pour le diagnostic.
 
 ## Observabilite
 
@@ -300,10 +302,29 @@ commentaires dans `infra/alertmanager/alertmanager.yml`).
 chaque push sur `main` (tags `latest` + sha court), avec le `GITHUB_TOKEN`
 integre - aucun secret a configurer.
 
-**Etat reel** : GitHub Actions est desactive sur ce compte ("GitHub Actions
-is currently disabled for this repository"), donc ce workflow n'a jamais
-pu s'executer et la CI n'a pas tourne non plus. Les images en ligne ont
-donc ete construites en local et poussees a la main :
+**Etat reel** : GitHub Actions est desactive **sur le compte** qui heberge
+ce depot, et le diagnostic vaut d'etre precis parce que tous les reglages
+visibles cote projet sont corrects :
+
+```
+GET  /repos/<owner>/portail/actions/permissions
+     -> { "enabled": true, "allowed_actions": "all" }     # le depot autorise tout
+
+POST /repos/<owner>/portail/actions/workflows/ci.yml/dispatches
+     -> 422 { "message": "Actions has been disabled for this user." }
+```
+
+Le blocage est donc au niveau du compte, pas du depot ni du workflow :
+aucun reglage de projet ne le leve, et ce n'est pas une question de quota
+(les depots publics ont des minutes illimitees). Consequence : ni `ci.yml`
+ni `publish.yml` n'ont jamais pu s'executer.
+
+`make verify` execute en local exactement la meme sequence que `ci.yml`
+(install propre, build et tests des deux applications), ce qui laisse la
+verification reproductible sur n'importe quelle machine en attendant.
+
+Les images en ligne ont donc ete construites en local et poussees a la
+main :
 
 ```bash
 docker login ghcr.io -u <user>            # PAT avec le scope write:packages

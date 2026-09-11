@@ -1,4 +1,4 @@
-import { Box, Button, HStack, Text, VStack } from '@chakra-ui/react';
+import { Button, HStack, Text, VStack } from '@chakra-ui/react';
 import { FiCopy } from 'react-icons/fi';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 import { formatDateFr } from '../utils/format';

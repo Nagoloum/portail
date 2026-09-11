@@ -301,6 +301,14 @@ service `edge` (nginx) qui :
 # .env : renseigner DOMAIN, CERTBOT_EMAIL, EDGE_HTTP_PORT, EDGE_HTTPS_PORT
 # (voir .env.example) avec les valeurs recues par email, en plus des
 # variables deja generees par un premier ./install.sh.
+#
+# La machine est partagee : TOUS les ports hotes (y compris APP_HTTP_PORT,
+# BACKEND_PORT, PROMETHEUS_PORT, ALERTMANAGER_PORT, GRAFANA_PORT) doivent
+# etre deplaces dans la plage assignee. Leurs valeurs par defaut (8080,
+# 3000, 3001, 9090, 9093) sont exactement celles que tout le monde
+# choisirait : deux conteneurs ne peuvent pas binder le meme port hote, et
+# les prendre reviendrait a casser le deploiement d'un autre candidat.
+# Voir l'exemple chiffre en bas de .env.example.
 
 infra/certbot/init-letsencrypt.sh   # obtient le premier certificat (staging par defaut)
 # une fois valide : LETSENCRYPT_STAGING=false dans .env, puis relancer le script

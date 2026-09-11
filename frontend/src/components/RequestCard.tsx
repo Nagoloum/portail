@@ -22,7 +22,7 @@ export function RequestCard({ request }: { request: RequestSummary }) {
     >
       <HStack justify="space-between" align="flex-start">
         <VStack align="flex-start" gap="0.5">
-          <RouterLink to={`/requests/${request.id}`}>
+          <RouterLink to={`/dossiers/${request.id}`}>
             <Text fontWeight="600" fontSize="md" _hover={{ color: 'primary' }}>
               {request.title}
             </Text>

@@ -40,6 +40,14 @@ docker run --rm -v portail_certbot_conf:/etc/letsencrypt -e DOMAIN="$DOMAIN" alp
 echo "==> Starting edge + frontend..."
 $COMPOSE up -d frontend edge
 
+# nginx has the dummy files open already, so removing them now is safe - and
+# necessary: certbot refuses to overwrite an existing live/ directory it did
+# not create, and would silently write the real cert to live/$DOMAIN-0001,
+# leaving nginx pinned to the self-signed one.
+echo "==> Removing the throwaway certificate before requesting the real one..."
+docker run --rm -v portail_certbot_conf:/etc/letsencrypt -e DOMAIN="$DOMAIN" alpine:3.20 \
+  sh -c 'rm -rf "/etc/letsencrypt/live/$DOMAIN" "/etc/letsencrypt/archive/$DOMAIN" "/etc/letsencrypt/renewal/$DOMAIN.conf"'
+
 echo "==> Requesting the real certificate from Let's Encrypt..."
 $COMPOSE run --rm --entrypoint certbot certbot certonly \
   --webroot -w /var/www/certbot \

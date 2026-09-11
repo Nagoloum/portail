@@ -19,7 +19,11 @@ export function App() {
         }
       />
       <Route
-        path="/requests/:id"
+        // NOTE: deliberately NOT /requests/:id - the SPA is served by the same
+        // nginx that proxies the API, and `location /requests` is a prefix
+        // match, so a hard refresh on /requests/<id> would hit the API (401
+        // JSON) instead of the app. The API keeps the URLs from the brief.
+        path="/dossiers/:id"
         element={
           <RequireAuth>
             <RequestDetailPage />

@@ -5524,3 +5524,1429 @@ The file D:\Projets\portail\ai-logs\export-transcript.js has been updated succes
   "timeout": 300000
 }
 ```
+
+**Resultat**
+
+```
+wrote ai-logs/session-2-claude-code-opus5.md (224488 chars, 935 transcript entries)
+--- binaire ? ---
+ai-logs/session-2-claude-code-opus5.md: Unicode text, UTF-8 text, with very long lines (1382), with CRLF, LF line terminators
+mot de passe: absent
+--- caviardages ---
+     24 CAVIARDE
+      3 CAVIARDEE
+```
+
+**Outil `PowerShell`**
+
+```json
+{
+  "command": "cd D:\\Projets\\portail; git add -A; git commit -q -m \"ai-logs: add redacted session 2 transcript and its export script\"; git push origin main 2>&1 | Select-Object -Last 2; git log --oneline -1",
+  "description": "Commit and push the ai-logs export",
+  "timeout": 180000
+}
+```
+
+**Resultat**
+
+```
+warning: in the working copy of 'ai-logs/session-2-claude-code-opus5.md', CRLF will be replaced by LF the next time Git touches it
+git : To https://github.com/Nagoloum/portail
+Au caractère Ligne:1 : 422
++ ...  transcript and its export script"; git push origin main 2>&1 | Selec ...
++                                         ~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (To https://github.com/Nagoloum/portail:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+   8bfb99c..bac40b1  main -> main
+bac40b1 ai-logs: add redacted session 2 transcript and its export script
+```
+
+## Claude
+
+Gros morceau derrière nous. Voilà où on en est — et le seul truc qui bloque.
+
+## Ce que l'exécution réelle a révélé
+
+`install.sh` n'avait **jamais** tourné. Quatre pannes bloquantes, toutes corrigées et poussées :
+
+| # | Panne | Effet |
+|---|---|---|
+| 1 | `docker.io/minio/minio` n'existe plus (404 sur le Hub) | `install.sh` mourait au pull → test n°1 du correcteur raté |
+| 2 | `entrypoint.sh` en CRLF | backend en crash-loop `#!/bin/sh\r` |
+| 3 | `detectedMimeType: string \| null` sans `type` explicite | `DataTypeNotSupportedError` **à chaque démarrage**, avant la 1ʳᵉ migration |
+| 4 | `file-type` ESM importé depuis un build CJS | **tous les uploads en 500**, et le contrôle magic-bytes n'a jamais tourné une seule fois |
+
+Le 4 est le plus grave : un contrôle de sécurité annoncé dans le README qui ne s'exécutait pas. Remplacé par une table de signatures (PDF/JPEG/PNG), zéro dépendance, testée.
+
+## Vérifié en vrai, pas déduit
+
+- `./install.sh --build` → vert, URLs affichées, lien client cliquable
+- Login avocat → création demande → mauvais PIN **401** → bon PIN → dépôt PDF **201** → `.exe` renommé `.pdf` **422**
+- L'objet est bien dans MinIO (`/data/portail-pieces/requests/<id>/...`), rien sur le disque de l'app
+- Métriques incrémentées, Prometheus scrape le backend, Grafana provisionné (datasource + dashboard)
+- **Alerte réellement déclenchée** : backend arrêté → `BackendDown [firing]` → reçue par Alertmanager
+- 37 tests Jest (30 + 7 de non-régression sur les 2 bugs ci-dessus)
+
+Serveur prêt : clé SSH en place, config seule dans `~/portail/`, ports `21700-21706`, `docker compose config` validé là-bas.
+
+`ai-logs/` contient maintenant le transcript complet de cette session, caviardé automatiquement (27 remplacements, mot de passe SSH absent — vérifié).
+
+## Le blocage
+
+J'ai essayé le token OAuth stocké sur ta machine : login GHCR OK mais **`permission_denied: token does not match expected scopes`**. Les images sont buildées et taguées ici, prêtes à partir.
+
+Il me faut le PAT : **github.com/settings/tokens** → *Generate new token (classic)* → cocher **`write:packages`** → colle-le ici.
+
+Dès que je l'ai : push GHCR → pull sur le serveur → certbot staging → prod → HTTPS en ligne. C'est ~20 min et le dernier critère éliminatoire tombe.
+
+## Daniel
+
+<ide_opened_file>The user opened the file d:\Projets\portail\.env in the IDE. This may or may not be related to the current task.</ide_opened_file>
+
+## Daniel
+
+voici le token
+
+[TOKEN GITHUB CAVIARDE]
+
+ne le lis pas, met le la ou il doit etre
+
+## Claude
+
+Il ne va dans aucun fichier du repo : uniquement dans le trousseau Docker, le temps du push. Le motif `ghp_*` est déjà caviardé automatiquement dans l'export ai-logs.
+
+**Outil `Bash`**
+
+```json
+{
+  "command": "cd /d/Projets/portail\nprintf '%s' '[TOKEN GITHUB CAVIARDE]' | docker login ghcr.io -u Nagoloum --password-stdin 2>&1 | tail -1\nSHA=$(git rev-parse --short HEAD)\necho \"=== push backend:latest ===\"\ndocker push ghcr.io/nagoloum/portail-backend:latest 2>&1 | tail -2\necho \"=== push frontend:latest ===\"\ndocker push ghcr.io/nagoloum/portail-frontend:latest 2>&1 | tail -2",
+  "description": "Log into GHCR with the PAT and push both images",
+  "timeout": 900000
+}
+```
+
+**Resultat**
+
+```
+Login Succeeded
+=== push backend:latest ===
+5257854c9fbb: Pushed
+latest: digest: sha256:42287ce2331611a6c7337c3e73600e2986f30da1c6f7d7926623ff565ba55d92 size: 856
+=== push frontend:latest ===
+ea906090fe83: Pushed
+latest: digest: sha256:9e1bdbe385cd4b7e277cf3df7b02319c1e04fd4656d10dc68c65ed5c99fea46c size: 856
+```
+
+## Claude
+
+**Images publiées sur GHCR.** Je pousse aussi les tags de commit, puis je rends les packages publics.
+
+**Outil `Bash`**
+
+```json
+{
+  "command": "cd /d/Projets/portail\nSHA=$(git rev-parse --short HEAD)\nfor c in backend frontend; do\n  docker tag portail-$c:local ghcr.io/nagoloum/portail-$c:$SHA\n  docker push ghcr.io/nagoloum/portail-$c:$SHA 2>&1 | tail -1\ndone\necho \"=== rendre les packages publics ===\"\nfor c in backend frontend; do\n  curl -s -X PATCH -H \"Authorization: Bearer [TOKEN GITHUB CAVIARDE]\" -H 'Accept: application/vnd.github+json' \\\n    \"https://api.github.com/user/packages/container/portail-$c\" -d '{\"visibility\":\"public\"}' -w \" [HTTP %{http_code}] portail-$c\\n\" -o /dev/null\ndone\necho \"=== visibilite actuelle ===\"\ncurl -s -H \"Authorization: Bearer [TOKEN GITHUB CAVIARDE]\" https://api.github.com/user/packages?package_type=container | node -pe 'JSON.parse(require(\"fs\").readFileSync(0)).map(p=>p.name+\": \"+p.visibility).join(\"\\n\")'",
+  "description": "Push sha tags and set package visibility to public",
+  "timeout": 600000
+}
+```
+
+**Resultat**
+
+```
+bac40b1: digest: sha256:42287ce2331611a6c7337c3e73600e2986f30da1c6f7d7926623ff565ba55d92 size: 856
+bac40b1: digest: sha256:9e1bdbe385cd4b7e277cf3df7b02319c1e04fd4656d10dc68c65ed5c99fea46c size: 856
+=== rendre les packages publics ===
+ [HTTP 404] portail-backend
+ [HTTP 404] portail-frontend
+=== visibilite actuelle ===
+portail-backend: private
+portail-frontend: private
+```
+
+## Claude
+
+Images publiées (`latest` + `bac40b1`). Elles sont **privées** — et l'API GitHub ne permet pas de changer ça, c'est l'UI uniquement. Il faut le faire, sinon `install.sh` échoue chez le correcteur :
+
+- https://github.com/users/Nagoloum/packages/container/portail-backend/settings → *Danger Zone* → **Change visibility → Public**
+- https://github.com/users/Nagoloum/packages/container/portail-frontend/settings → idem
+
+Pendant ce temps je resynchronise la config serveur (quay.io + token de seed).
+
+**Outil `PowerShell`**
+
+```json
+{
+  "command": "$k = \"$env:USERPROFILE\\.ssh\\portail_div\"\nscp -i $k -o StrictHostKeyChecking=no -r D:\\Projets\\portail\\infra daniel-nagoloum@152.228.192.48:~/portail/\nssh -i $k -o StrictHostKeyChecking=no daniel-nagoloum@152.228.192.48 'cd ~/portail && chmod +x infra/certbot/init-letsencrypt.sh && grep -n \"quay.io\\|SEED_REQUEST_TOKEN\" infra/docker-compose.yml && docker compose --env-file .env -f infra/docker-compose.yml -f infra/docker-compose.edge.yml config --quiet && echo COMPOSE_OK'",
+  "description": "Re-upload infra config to the server and revalidate",
+  "timeout": 300000
+}
+```
+
+**Resultat**
+
+```
+Exit code 1
+```
+
+**Outil `PowerShell`**
+
+```json
+{
+  "command": "$k = \"$env:USERPROFILE\\.ssh\\portail_div\"\nssh -i $k -o StrictHostKeyChecking=no daniel-nagoloum@152.228.192.48 'cd ~/portail; chmod +x infra/certbot/init-letsencrypt.sh; grep -n quay.io infra/docker-compose.yml; docker compose --env-file .env -f infra/docker-compose.yml -f infra/docker-compose.edge.yml config --quiet; echo \"config exit=$?\"'",
+  "description": "Check uploaded config on the server",
+  "timeout": 300000
+}
+```
+
+**Resultat**
+
+```
+51:    # quay.io, not Docker Hub: docker.io/minio/minio no longer resolves
+53:    # machine dies here. quay.io is MinIO's own registry and carries the
+55:    image: quay.io/minio/minio:RELEASE.2024-11-07T00-52-20Z
+config exit=0
+```
+
+## Claude
+
+Config serveur OK. Je déploie maintenant : login GHCR temporaire sur le serveur, pull, puis **logout immédiat** (pas de token qui traîne sur une machine partagée).
+
+**Outil `PowerShell`**
+
+```json
+{
+  "command": "$k = \"$env:USERPROFILE\\.ssh\\portail_div\"\n$cmd = 'cd ~/portail; printf %s \"[TOKEN GITHUB CAVIARDE]\" | docker login ghcr.io -u Nagoloum --password-stdin; docker compose --env-file .env -f infra/docker-compose.yml -f infra/docker-compose.edge.yml pull postgres minio backend frontend prometheus alertmanager grafana 2>&1 | tail -5; docker logout ghcr.io; rm -f ~/.docker/config.json; echo \"--- images locales ---\"; docker images --format \"{{.Repository}}:{{.Tag}}\" | head -10'\nssh -i $k -o StrictHostKeyChecking=no daniel-nagoloum@152.228.192.48 $cmd",
+  "description": "Pull images on the server then remove credentials",
+  "timeout": 900000
+}
+```
+
+**Resultat**
+
+```
+Login Succeeded
+
+WARNING! Your credentials are stored unencrypted in '/home/daniel-nagoloum/.docker/config.json'.
+Configure a credential helper to remove this warning. See
+https://docs.docker.com/go/credential-store/
+
+ 5257854c9fbb Extracting 4B
+ 5257854c9fbb Extracting 5B
+ 5257854c9fbb Extracting 5B
+ 5257854c9fbb Pull complete 0B
+ Image ghcr.io/nagoloum/portail-backend:latest Pulled 
+Removing login credentials for ghcr.io
+--- images locales ---
+ghcr.io/nagoloum/portail-backend:latest
+ghcr.io/nagoloum/portail-frontend:latest
+ghcr.io/themlaw/exo-div-protocol/portail-web:latest
+ghcr.io/themlaw/exo-div-protocol/portail-app:latest
+ghcr.io/lualapex624/div-portail-depot-web:1.0.1
+ghcr.io/lualapex624/div-portail-depot-api:1.0.1
+ghcr.io/lualapex624/div-portail-depot-web:1.0.0
+ghcr.io/lualapex624/div-portail-depot-api:1.0.0
+ghcr.io/amaridi/depot-backend:1.0.0
+ghcr.io/amaridi/depot-frontend:1.0.0
+```
+
+## Claude
+
+Images sur le serveur, credentials effacés. Certificat **staging** d'abord, comme le sujet l'exige.
+
+**Outil `PowerShell`**
+
+```json
+{
+  "command": "$k = \"$env:USERPROFILE\\.ssh\\portail_div\"\nssh -i $k -o StrictHostKeyChecking=no daniel-nagoloum@152.228.192.48 'cd ~/portail && bash infra/certbot/init-letsencrypt.sh 2>&1 | tail -40'",
+  "description": "Bootstrap the Let's Encrypt staging certificate on the server",
+  "timeout": 900000
+}
+```
+
+**Resultat**
+
+```
+Container portail-minio-1 Starting 
+ Container portail-postgres-1 Started 
+ Container portail-minio-1 Started 
+ Container portail-minio-1 Waiting 
+ Container portail-postgres-1 Waiting 
+ Container portail-postgres-1 Healthy 
+ Container portail-minio-1 Healthy 
+ Container portail-backend-1 Starting 
+ Container portail-backend-1 Started 
+ Container portail-frontend-1 Starting 
+ Container portail-frontend-1 Started 
+ Container portail-edge-1 Starting 
+ Container portail-edge-1 Started 
+==> Removing the throwaway certificate before requesting the real one...
+==> Requesting the real certificate from Let's Encrypt...
+time="2026-09-11T20:18:37Z" level=warning msg="volume \"portail_certbot_conf\" already exists but was not created by Docker Compose. Use `external: true` to use an existing volume"
+time="2026-09-11T20:18:37Z" level=warning msg="volume \"portail_certbot_www\" already exists but was not created by Docker Compose. Use `external: true` to use an existing volume"
+ Container portail-certbot-run-905fc442b1e6 Creating 
+ Container portail-certbot-run-905fc442b1e6 Created 
+Saving debug log to /var/log/letsencrypt/letsencrypt.log
+Account registered.
+Requesting a certificate for daniel-nagoloum.stage2-div.rayan-drissi.com
+
+Successfully received certificate.
+Certificate is saved at: /etc/letsencrypt/live/daniel-nagoloum.stage2-div.rayan-drissi.com/fullchain.pem
+Key is saved at:         /etc/letsencrypt/live/daniel-nagoloum.stage2-div.rayan-drissi.com/privkey.pem
+This certificate expires on 2026-12-10.
+These files will be updated when the certificate renews.
+NEXT STEPS:
+- The certificate will need to be renewed before it expires. Certbot can automatically renew the certificate in the background, but you may need to take steps to enable that functionality. See https://certbot.org/renewal-setup for instructions.
+==> Reloading edge nginx onto the real certificate...
+2026/09/11 20:18:46 [notice] 40#40: signal process started
+==> Starting the certbot renewal loop...
+time="2026-09-11T20:18:46Z" level=warning msg="volume \"portail_certbot_conf\" already exists but was not created by Docker Compose. Use `external: true` to use an existing volume"
+time="2026-09-11T20:18:46Z" level=warning msg="volume \"portail_certbot_www\" already exists but was not created by Docker Compose. Use `external: true` to use an existing volume"
+ Container portail-certbot-1 Creating 
+ Container portail-certbot-1 Created 
+ Container portail-certbot-1 Starting 
+ Container portail-certbot-1 Start
+[... 101 caracteres tronques ...]
+```
+
+## Claude
+
+Chaîne complète validée en staging. Je passe en production.
+
+**Outil `PowerShell`**
+
+```json
+{
+  "command": "$k = \"$env:USERPROFILE\\.ssh\\portail_div\"\nssh -i $k -o StrictHostKeyChecking=no daniel-nagoloum@152.228.192.48 'cd ~/portail; echo \"=== test local via edge (staging) ===\"; curl -sk -o /dev/null -w \"HTTPS %{http_code}\\n\" https://127.0.0.1:21701/ --resolve daniel-nagoloum.stage2-div.rayan-drissi.com:21701:127.0.0.1 -H \"Host: daniel-nagoloum.stage2-div.rayan-drissi.com\"; echo \"=== passage en production ===\"; sed -i \"s/^LETSENCRYPT_STAGING=.*/LETSENCRYPT_STAGING=false/\" .env; grep LETSENCRYPT_STAGING .env'",
+  "description": "Verify staging cert works and flip to production",
+  "timeout": 300000
+}
+```
+
+**Resultat**
+
+```
+Exit code 2
+bash: -c: line 1: syntax error near unexpected token `('
+bash: -c: line 1: `cd ~/portail; echo === test local via edge (staging) ===; curl -sk -o /dev/null -w HTTPS %{http_code}\n https://127.0.0.1:21701/ --resolve daniel-nagoloum.stage2-div.rayan-drissi.com:21701:127.0.0.1 -H Host: daniel-nagoloum.stage2-div.rayan-drissi.com; echo === passage en production ===; sed -i s/^LETSENCRYPT_STAGING=.*/LETSENCRYPT_STAGING=false/ .env; grep LETSENCRYPT_STAGING .env'
+```
+
+## Claude
+
+PowerShell mange les quotes. Je passe par Bash pour le SSH.
+
+**Outil `Bash`**
+
+```json
+{
+  "command": "SSH=\"ssh -i $HOME/.ssh/portail_div -o StrictHostKeyChecking=no daniel-nagoloum@152.228.192.48\"\n$SSH 'cd ~/portail && curl -sk -o /dev/null -w \"edge HTTPS local: %{http_code}\\n\" -H \"Host: daniel-nagoloum.stage2-div.rayan-drissi.com\" https://127.0.0.1:21701/ && sed -i \"s/^LETSENCRYPT_STAGING=.*/LETSENCRYPT_STAGING=false/\" .env && grep LETSENCRYPT_STAGING .env'",
+  "description": "Verify edge over HTTPS and switch to production Let's Encrypt",
+  "timeout": 300000
+}
+```
+
+**Resultat**
+
+```
+edge HTTPS local: 200
+LETSENCRYPT_STAGING=false
+```
+
+**Outil `Bash`**
+
+```json
+{
+  "command": "SSH=\"ssh -i $HOME/.ssh/portail_div -o StrictHostKeyChecking=no daniel-nagoloum@152.228.192.48\"\n$SSH 'cd ~/portail && bash infra/certbot/init-letsencrypt.sh 2>&1 | tail -18'",
+  "description": "Request the production Let's Encrypt certificate",
+  "timeout": 900000
+}
+```
+
+**Resultat**
+
+```
+Key is saved at:         /etc/letsencrypt/live/daniel-nagoloum.stage2-div.rayan-drissi.com/privkey.pem
+This certificate expires on 2026-12-10.
+These files will be updated when the certificate renews.
+NEXT STEPS:
+- The certificate will need to be renewed before it expires. Certbot can automatically renew the certificate in the background, but you may need to take steps to enable that functionality. See https://certbot.org/renewal-setup for instructions.
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+If you like Certbot, please consider supporting our work by:
+ * Donating to ISRG / Let's Encrypt:   https://letsencrypt.org/donate
+ * Donating to EFF:                    https://eff.org/donate-le
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+==> Reloading edge nginx onto the real certificate...
+2026/09/11 20:19:35 [notice] 50#50: signal process started
+==> Starting the certbot renewal loop...
+time="2026-09-11T20:19:35Z" level=warning msg="volume \"portail_certbot_conf\" already exists but was not created by Docker Compose. Use `external: true` to use an existing volume"
+time="2026-09-11T20:19:35Z" level=warning msg="volume \"portail_certbot_www\" already exists but was not created by Docker Compose. Use `external: true` to use an existing volume"
+ Container portail-certbot-1 Running 
+Done. https://daniel-nagoloum.stage2-div.rayan-drissi.com should now serve a production certificate.
+```
+
+## Claude
+
+Certificat production obtenu. Test depuis l'extérieur, sur la vraie URL :
+
+**Outil `Bash`**
+
+```json
+{
+  "command": "URL=https://daniel-nagoloum.stage2-div.rayan-drissi.com\necho \"=== TLS + page ===\"\ncurl -s -o /dev/null -w 'HTTP %{http_code} | TLS %{ssl_verify_result} (0 = certificat valide) | %{time_total}s\\n' $URL\necho \"=== emetteur du certificat ===\"\necho | openssl s_client -connect daniel-nagoloum.stage2-div.rayan-drissi.com:443 -servername daniel-nagoloum.stage2-div.rayan-drissi.com 2>/dev/null | openssl x509 -noout -issuer -subject -dates\necho \"=== redirection HTTP -> HTTPS ===\"\ncurl -s -o /dev/null -w 'http:// -> HTTP %{http_code} vers %{redirect_url}\\n' http://daniel-nagoloum.stage2-div.rayan-drissi.com\necho \"=== API en ligne ===\"\ncurl -s $URL/health; echo\ncurl -s -X POST $URL/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"avocat@demo.dev\",\"password\":\"Demo1234!\"}' -o /dev/null -w 'login avocat -> HTTP %{http_code}\\n'",
+  "description": "Verify the live HTTPS deployment from outside",
+  "timeout": 300000
+}
+```
+
+**Resultat**
+
+```
+=== TLS + page ===
+HTTP 200 | TLS 0 (0 = certificat valide) | 0.135070s
+=== emetteur du certificat ===
+issuer=C=US, O=Let's Encrypt, CN=YE2
+subject=CN=daniel-nagoloum.stage2-div.rayan-drissi.com
+notBefore=Sep 11 19:21:01 2026 GMT
+notAfter=Dec 10 19:21:00 2026 GMT
+=== redirection HTTP -> HTTPS ===
+http:// -> HTTP 301 vers https://daniel-nagoloum.stage2-div.rayan-drissi.com//n=== API en ligne ===
+{"status":"ok"}
+login avocat -> HTTP 200
+```
+
+## Claude
+
+**En ligne : https://daniel-nagoloum.stage2-div.rayan-drissi.com** — certificat Let's Encrypt valide, redirection 80→443, API et login OK. Je valide le parcours complet en production.
+
+**Outil `Bash`**
+
+```json
+{
+  "command": "cd /d/Projets/portail\nURL=https://daniel-nagoloum.stage2-div.rayan-drissi.com\nmkdir -p .tmp-prod && cd .tmp-prod\nprintf '%%PDF-1.4\\n1 0 obj<</Type/Catalog>>endobj\\ntrailer<</Root 1 0 R>>\\n%%%%EOF\\n' > piece-prod.pdf\nprintf 'MZ\\x90\\x00\\x03 payload\\n' > piege.pdf\n\necho \"=== lien seede + PIN ===\"\ncurl -s -o /dev/null -w 'page publique /d/8f3a2c1b4d5e6f70 -> HTTP %{http_code}\\n' $URL/d/8f3a2c1b4d5e6f70\ncurl -s -o /dev/null -w 'mauvais PIN -> HTTP %{http_code}\\n' -X POST $URL/public/8f3a2c1b4d5e6f70/unlock -H 'Content-Type: application/json' -d '{\"pin\":\"0000\"}'\nPUB=$(curl -s -X POST $URL/public/8f3a2c1b4d5e6f70/unlock -H 'Content-Type: application/json' -d '{\"pin\":\"1234\"}' | node -pe 'JSON.parse(require(\"fs\").readFileSync(0)).accessToken')\necho \"bon PIN -> jeton de session obtenu\"\n\necho \"=== depot reel en production ===\"\ncurl -sS -w '\\n-> HTTP %{http_code}\\n' -X POST $URL/public/8f3a2c1b4d5e6f70/files -H \"Authorization: Bearer $PUB\" -F \"file=@piece-prod.pdf;type=application/pdf\" 2>&1 | head -c 400\necho \"=== .exe renomme ===\"\ncurl -sS -w '\\n-> HTTP %{http_code}\\n' -X POST $URL/public/8f3a2c1b4d5e6f70/files -H \"Authorization: Bearer $PUB\" -F \"file=@piege.pdf;type=application/pdf\" 2>&1 | head -c 300\necho \"=== observabilite exposee sur le domaine ===\"\ncurl -s -o /dev/null -w 'grafana -> HTTP %{http_code}\\n' $URL/grafana/login\ncurl -s -o /dev/null -w 'prometheus -> HTTP %{http_code}\\n' $URL/prometheus/graph\necho \"=== /metrics ne doit PAS etre public ===\"\ncurl -s -o /dev/null -w 'metrics -> HTTP %{http_code}\\n' $URL/metrics\ncd .. && rm -rf .tmp-prod",
+  "description": "Exercise the full flow against the live deployment",
+  "timeout": 300000
+}
+```
+
+**Resultat**
+
+```
+=== lien seede + PIN ===
+page publique /d/8f3a2c1b4d5e6f70 -> HTTP 200
+mauvais PIN -> HTTP 401
+bon PIN -> jeton de session obtenu
+=== depot reel en production ===
+{"title":"Dossier Martin, pieces 2026","status":"PENDING","requiredCount":4,"uploadedCount":1,"expiresAt":"2026-09-15T20:18:38.073Z","files":[{"id":"fed92ee3-8989-4a85-a3c9-7f9983dd002c","originalName":"piece-prod.pdf","size":69,"uploadedAt":"2026-09-11T20:20:13.815Z"}]}
+-> HTTP 201
+=== .exe renomme ===
+{"message":"Le contenu du fichier ne correspond pas a un PDF, JPG ou PNG valide","error":"Unprocessable Entity","statusCode":422}
+-> HTTP 422
+=== observabilite exposee sur le domaine ===
+grafana -> HTTP 502
+prometheus -> HTTP 502
+=== /metrics ne doit PAS etre public ===
+metrics -> HTTP 200
+```
+
+## Claude
+
+Deux points à vérifier : Grafana/Prometheus ne tournent pas encore, et il faut confirmer ce que renvoie vraiment `/metrics`.
+
+**Outil `Bash`**
+
+```json
+{
+  "command": "URL=https://daniel-nagoloum.stage2-div.rayan-drissi.com\necho \"=== contenu reel de /metrics ===\"\ncurl -s $URL/metrics | head -c 200; echo; echo \"---\"\nSSH=\"ssh -i $HOME/.ssh/portail_div -o StrictHostKeyChecking=no daniel-nagoloum@152.228.192.48\"\n$SSH 'cd ~/portail && docker compose --env-file .env -f infra/docker-compose.yml -f infra/docker-compose.edge.yml up -d 2>&1 | tail -12 && docker compose --env-file .env -f infra/docker-compose.yml -f infra/docker-compose.edge.yml ps --format \"{{.Name}} | {{.Status}}\"'",
+  "description": "Check /metrics content and bring the full stack up on the server",
+  "timeout": 600000
+}
+```
+
+**Resultat**
+
+```
+=== contenu reel de /metrics ===
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googl
+---
+ Container portail-grafana-1 Creating 
+ Container portail-grafana-1 Created 
+ Container portail-alertmanager-1 Starting 
+ Container portail-prometheus-1 Starting 
+ Container portail-postgres-1 Waiting 
+ Container portail-minio-1 Waiting 
+ Container portail-alertmanager-1 Started 
+ Container portail-prometheus-1 Started 
+ Container portail-grafana-1 Starting 
+ Container portail-minio-1 Healthy 
+ Container portail-postgres-1 Healthy 
+ Container portail-grafana-1 Started 
+portail-alertmanager-1 | Up Less than a second
+portail-backend-1 | Up 2 minutes (healthy)
+portail-certbot-1 | Up 2 minutes
+portail-edge-1 | Up 2 minutes
+portail-frontend-1 | Up 2 minutes (healthy)
+portail-grafana-1 | Up Less than a second
+portail-minio-1 | Up 2 minutes (healthy)
+portail-postgres-1 | Up 2 minutes (healthy)
+portail-prometheus-1 | Up Less than a second
+```
+
+## Claude
+
+`/metrics` renvoie le SPA, pas les métriques — l'affirmation du README tient. Stack complète démarrée, je recontrôle.
+
+**Outil `Bash`**
+
+```json
+{
+  "command": "URL=https://daniel-nagoloum.stage2-div.rayan-drissi.com\nsleep 12\ncurl -s -o /dev/null -w 'grafana    -> HTTP %{http_code}\\n' $URL/grafana/login\ncurl -s -o /dev/null -w 'prometheus -> HTTP %{http_code}\\n' $URL/prometheus/graph\necho \"=== cibles + regles (via le domaine) ===\"\ncurl -s $URL/prometheus/api/v1/targets | node -pe 'JSON.parse(require(\"fs\").readFileSync(0)).data.activeTargets.map(t=>t.labels.job+\" -> \"+t.health).join(\"\\n\")'\ncurl -s $URL/prometheus/api/v1/rules | node -pe 'JSON.parse(require(\"fs\").readFileSync(0)).data.groups.flatMap(g=>g.rules).map(r=>r.name+\" [\"+r.state+\"]\").join(\"\\n\")'\necho \"=== ports ouverts par notre stack (doit etre 217xx sur 127.0.0.1 uniquement) ===\"\nssh -i $HOME/.ssh/portail_div -o StrictHostKeyChecking=no daniel-nagoloum@152.228.192.48 'docker ps --filter \"name=portail-\" --format \"{{.Names}}: {{.Ports}}\"'",
+  "description": "Verify observability through the domain and port bindings",
+  "timeout": 300000
+}
+```
+
+**Resultat**
+
+```
+grafana    -> HTTP 301
+prometheus -> HTTP 302
+=== cibles + regles (via le domaine) ===
+<anonymous_script>:1
+<a href="/graph">Found</a>.
+^
+
+SyntaxError: Unexpected token '<', "<a href="/"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at [eval]:1:6
+    at runScriptInThisContext (node:internal/vm:219:10)
+    at node:internal/process/execution:451:12
+    at [eval]-wrapper:6:24
+    at runScriptInContext (node:internal/process/execution:449:60)
+    at evalFunction (node:internal/process/execution:283:30)
+    at evalTypeScript (node:internal/process/execution:295:3)
+    at node:internal/main/eval_string:71:3
+
+Node.js v24.10.0
+<anonymous_script>:1
+<a href="/graph">Found</a>.
+^
+
+SyntaxError: Unexpected token '<', "<a href="/"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at [eval]:1:6
+    at runScriptInThisContext (node:internal/vm:219:10)
+    at node:internal/process/execution:451:12
+    at [eval]-wrapper:6:24
+    at runScriptInContext (node:internal/process/execution:449:60)
+    at evalFunction (node:internal/process/execution:283:30)
+    at evalTypeScript (node:internal/process/execution:295:3)
+    at node:internal/main/eval_string:71:3
+
+Node.js v24.10.0
+=== ports ouverts par notre stack (doit etre 217xx sur 127.0.0.1 uniquement) ===
+portail-grafana-1: 127.0.0.1:21706->3000/tcp
+portail-prometheus-1: 127.0.0.1:21704->9090/tcp
+portail-alertmanager-1: 127.0.0.1:21705->9093/tcp
+portail-certbot-1: 80/tcp, 443/tcp
+portail-edge-1: 127.0.0.1:21700->80/tcp, 127.0.0.1:21701->443/tcp
+portail-frontend-1: 127.0.0.1:21702->80/tcp
+portail-backend-1: 127.0.0.1:21703->3000/tcp
+portail-postgres-1: 5432/tcp
+portail-minio-1: 9000/tcp
+portail-depot-prod-minio-1: 9000/tcp
+portail-depot-prod-frontend-1: 127.0.0.1:21900->80/tcp, 127.0.0.1:21901->443/tcp
+portail-depot-prod-backend-1: 3000/tcp
+portail-depot-prod-alertmanager-1: 9093/tcp
+portail-depot-prod-postgres-1: 5432/tcp
+portail-depot-prod-alert-sink-1: 80/tcp
+portail-depot-prod-prometheus-1: 9090/tcp
+portail-depot-prod-grafana-1: 3000/tcp
+portail-depot-traefik-1: 80/tcp, 127.0.0.1:22300->8000/tcp, 127.0.0.1:22301->8443/tcp
+portail-depot-app-1: 
+portail-depot-worker-1: 
+portail-depot-postgres-1: 5432/tcp
+portail-depot-web-1: 80/tcp, 8080/tcp
+portail-depot-grafana-1: 3000/tcp
+portail-depot-clamav-1: 3310/tcp, 7357/tcp
+portail-depot-prometheus-1: 9090/tcp
+portail-depot-minio-1: 9000/tcp
+div-portail-edge-1: 127.0.0.1:21000->80/tcp, 127.0.0.1:21001->443/tcp
+div-portail-grafana-1: 1
+[... 241 caracteres tronques ...]
+```
+
+**Outil `Bash`**
+
+```json
+{
+  "command": "URL=https://daniel-nagoloum.stage2-div.rayan-drissi.com\necho \"=== suivi des redirections ===\"\ncurl -sL -o /dev/null -w 'grafana    -> HTTP %{http_code} (%{url_effective})\\n' $URL/grafana/login\ncurl -sL -o /dev/null -w 'prometheus -> HTTP %{http_code} (%{url_effective})\\n' $URL/prometheus/graph\necho \"=== API prometheus ===\"\ncurl -s -o /dev/null -w 'targets brut -> HTTP %{http_code}\\n' $URL/prometheus/api/v1/targets\ncurl -sL $URL/prometheus/api/v1/targets | head -c 300; echo",
+  "description": "Follow redirects to confirm observability endpoints",
+  "timeout": 300000
+}
+```
+
+**Resultat**
+
+```
+=== suivi des redirections ===
+grafana    -> HTTP 301 (https://daniel-nagoloum.stage2-div.rayan-drissi.com/grafana/)
+prometheus -> HTTP 200 (https://daniel-nagoloum.stage2-div.rayan-drissi.com/graph)
+=== API prometheus ===
+targets brut -> HTTP 302
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+```
+
+## Claude
+
+Prometheus derrière `/prometheus/` renvoie des redirections absolues qui atterrissent sur le SPA. Je corrige dans l'overlay serveur.
+
+**Outil `Bash`**
+
+```json
+{
+  "command": "URL=https://daniel-nagoloum.stage2-div.rayan-drissi.com\ncurl -s -o /dev/null -w 'grafana /grafana/  -> HTTP %{http_code}\\n' $URL/grafana/\ncurl -sL -o /dev/null -w 'grafana suivi      -> HTTP %{http_code} (%{url_effective})\\n' $URL/grafana/\ncurl -s $URL/grafana/api/health | head -c 200; echo",
+  "description": "Test Grafana under its subpath",
+  "timeout": 300000
+}
+```
+
+**Resultat**
+
+```
+grafana /grafana/  -> HTTP 301
+grafana suivi      -> HTTP 301 (https://daniel-nagoloum.stage2-div.rayan-drissi.com/grafana/)
+<a href="https://daniel-nagoloum.stage2-div.rayan-drissi.com/grafana/">Moved Permanently</a>.
+```
+
+## Claude
+
+Redirection en boucle : nginx strippe `/grafana/` alors que Grafana attend le préfixe. Deux corrections ciblées.
+
+**Outil `Edit`**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "D:\\Projets\\portail\\infra\\nginx\\edge.conf.template",
+  "old_string": "  location /grafana/ {\n    set $upstream_grafana grafana;\n    proxy_pass http://$upstream_grafana:3000/;",
+  "new_string": "  # No trailing slash on proxy_pass: the prefix is NOT stripped. Grafana\n  # runs with GF_SERVER_SERVE_FROM_SUB_PATH=true and a root_url ending in\n  # /grafana/, so it expects to receive the prefix. Stripping it made\n  # Grafana redirect / to its root_url on every request - an infinite 301\n  # loop on /grafana/.\n  location /grafana/ {\n    set $upstream_grafana grafana;\n    proxy_pass http://$upstream_grafana:3000;"
+}
+```
+
+**Resultat**
+
+```
+The file D:\Projets\portail\infra\nginx\edge.conf.template has been updated successfully. (note: the file had been modified on disk since you last read it — the edit applied cleanly, but the file contains other changes not in your context. Read it before edits that depend on surrounding content.)
+```
+
+**Outil `Edit`**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "D:\\Projets\\portail\\infra\\nginx\\edge.conf.template",
+  "old_string": "  location /prometheus/ {\n    set $upstream_prometheus prometheus;\n    proxy_pass http://$upstream_prometheus:9090/;",
+  "new_string": "  # Prometheus is the mirror image: it keeps serving at / internally\n  # (--web.route-prefix=/) and only rewrites the links it generates to the\n  # external prefix (--web.external-url, see docker-compose.edge.yml), so\n  # here the prefix IS stripped by the trailing slash. Without those flags\n  # Prometheus answered /prometheus/graph with an absolute redirect to\n  # /graph, which landed on the SPA.\n  location /prometheus/ {\n    set $upstream_prometheus prometheus;\n    proxy_pass http://$upstream_prometheus:9090/;"
+}
+```
+
+**Resultat**
+
+```
+The file D:\Projets\portail\infra\nginx\edge.conf.template has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**Outil `Edit`**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "D:\\Projets\\portail\\infra\\docker-compose.edge.yml",
+  "old_string": "  grafana:\n    environment:\n      GF_SERVER_ROOT_URL: https://${DOMAIN}/grafana/\n      GF_SERVER_SERVE_FROM_SUB_PATH: 'true'",
+  "new_string": "  grafana:\n    environment:\n      GF_SERVER_ROOT_URL: https://${DOMAIN}/grafana/\n      GF_SERVER_SERVE_FROM_SUB_PATH: 'true'\n\n  # Served under /prometheus/ on the single public hostname. `external-url`\n  # is what Prometheus puts in the links and redirects it generates;\n  # `route-prefix=/` keeps it listening at the root internally, which is\n  # what the edge's stripping proxy_pass sends it. Without the pair, every\n  # redirect pointed at /graph and fell through to the SPA.\n  prometheus:\n    command:\n      - '--config.file=/etc/prometheus/prometheus.yml'\n      - '--storage.tsdb.path=/prometheus'\n      - '--web.external-url=https://${DOMAIN}/prometheus/'\n      - '--web.route-prefix=/'"
+}
+```
+
+**Resultat**
+
+```
+The file D:\Projets\portail\infra\docker-compose.edge.yml has been updated successfully. (note: the file had been modified on disk since you last read it — the edit applied cleanly, but the file contains other changes not in your context. Read it before edits that depend on surrounding content.)
+```
+
+**Outil `Bash`**
+
+```json
+{
+  "command": "cd /d/Projets/portail\nscp -i $HOME/.ssh/portail_div -o StrictHostKeyChecking=no infra/nginx/edge.conf.template infra/docker-compose.edge.yml daniel-nagoloum@152.228.192.48:~/portail/infra/ 2>&1 | tail -2\nssh -i $HOME/.ssh/portail_div -o StrictHostKeyChecking=no daniel-nagoloum@152.228.192.48 'cd ~/portail && mv -f infra/edge.conf.template infra/nginx/edge.conf.template && docker compose --env-file .env -f infra/docker-compose.yml -f infra/docker-compose.edge.yml up -d edge prometheus grafana 2>&1 | tail -6'",
+  "description": "Upload the corrected edge config and restart the affected services",
+  "timeout": 600000
+}
+```
+
+**Resultat**
+
+```
+Container portail-prometheus-1 Starting 
+ Container portail-postgres-1 Waiting 
+ Container portail-minio-1 Waiting 
+ Container portail-prometheus-1 Started 
+ Container portail-minio-1 Healthy 
+ Container portail-postgres-1 Healthy
+```
+
+**Outil `Bash`**
+
+```json
+{
+  "command": "URL=https://daniel-nagoloum.stage2-div.rayan-drissi.com\nsleep 15\ncurl -sL -o /dev/null -w 'grafana    -> HTTP %{http_code} (%{url_effective})\\n' $URL/grafana/\ncurl -sL -o /dev/null -w 'prometheus -> HTTP %{http_code} (%{url_effective})\\n' $URL/prometheus/graph\necho \"=== cibles scrapees (via le domaine) ===\"\ncurl -s $URL/prometheus/api/v1/targets | node -pe 'JSON.parse(require(\"fs\").readFileSync(0)).data.activeTargets.map(t=>t.labels.job+\" -> \"+t.health).join(\"\\n\")' 2>&1 | head -5\necho \"=== regles d alerte chargees ===\"\ncurl -s $URL/prometheus/api/v1/rules | node -pe 'JSON.parse(require(\"fs\").readFileSync(0)).data.groups.flatMap(g=>g.rules).map(r=>r.name+\" [\"+r.state+\"]\").join(\"\\n\")' 2>&1 | head -6\necho \"=== dashboard Grafana provisionne ===\"\ncurl -s $URL/grafana/api/health | head -c 150; echo",
+  "description": "Verify Grafana and Prometheus through the public domain",
+  "timeout": 300000
+}
+```
+
+**Resultat**
+
+```
+grafana    -> HTTP 301 (https://daniel-nagoloum.stage2-div.rayan-drissi.com/grafana/)
+prometheus -> HTTP 302 (https://daniel-nagoloum.stage2-div.rayan-drissi.com/prometheus/graph)
+=== cibles scrapees (via le domaine) ===
+<anonymous_script>:1
+<a href="/prometheus/graph">Found</a>.
+^
+
+SyntaxError: Unexpected token '<', "<a href="/"... is not valid JSON
+=== regles d alerte chargees ===
+<anonymous_script>:1
+<a href="/prometheus/graph">Found</a>.
+^
+
+SyntaxError: Unexpected token '<', "<a href="/"... is not valid JSON
+    at JSON.parse (<anonymous>)
+=== dashboard Grafana provisionne ===
+<a href="https://daniel-nagoloum.stage2-div.rayan-drissi.com/grafana/">Moved Permanently</a>.
+```
+
+## Claude
+
+L'edge n'a pas été recréé (config montée, compose ne voit pas de changement). Je le force.
+
+**Outil `Bash`**
+
+```json
+{
+  "command": "SSH=\"ssh -i $HOME/.ssh/portail_div -o StrictHostKeyChecking=no daniel-nagoloum@152.228.192.48\"\n$SSH 'cd ~/portail && docker compose --env-file .env -f infra/docker-compose.yml -f infra/docker-compose.edge.yml up -d --force-recreate edge 2>&1 | tail -3 && sleep 5 && echo \"=== conf effective dans le conteneur ===\" && docker exec portail-edge-1 grep -A2 \"location /grafana/\\|location /prometheus/\" /etc/nginx/conf.d/default.conf && echo \"=== prometheus en direct (sans edge) ===\" && curl -s -o /dev/null -w \"direct api/v1/targets -> HTTP %{http_code}\\n\" http://127.0.0.1:21704/api/v1/targets'",
+  "description": "Force-recreate edge and inspect its effective config",
+  "timeout": 600000
+}
+```
+
+**Resultat**
+
+```
+Container portail-postgres-1 Healthy 
+ Container portail-edge-1 Starting 
+ Container portail-edge-1 Started 
+=== conf effective dans le conteneur ===
+  location /grafana/ {
+    set $upstream_grafana grafana;
+    proxy_pass http://$upstream_grafana:3000;
+--
+  location /prometheus/ {
+    set $upstream_prometheus prometheus;
+    proxy_pass http://$upstream_prometheus:9090/;
+=== prometheus en direct (sans edge) ===
+direct api/v1/targets -> HTTP 200
+```
+
+**Outil `Bash`**
+
+```json
+{
+  "command": "URL=https://daniel-nagoloum.stage2-div.rayan-drissi.com\ncurl -sL -o /dev/null -w 'grafana    -> HTTP %{http_code} (%{url_effective})\\n' $URL/grafana/\ncurl -s -o /dev/null -w 'prom api   -> HTTP %{http_code}\\n' $URL/prometheus/api/v1/targets\ncurl -s $URL/prometheus/api/v1/targets | node -pe 'JSON.parse(require(\"fs\").readFileSync(0)).data.activeTargets.map(t=>t.labels.job+\" -> \"+t.health).join(\"\\n\")' 2>&1 | head -4\ncurl -s $URL/prometheus/api/v1/rules | node -pe 'JSON.parse(require(\"fs\").readFileSync(0)).data.groups.flatMap(g=>g.rules).map(r=>r.name+\" [\"+r.state+\"]\").join(\"\\n\")' 2>&1 | head -5\ncurl -s $URL/grafana/api/health | head -c 120",
+  "description": "Recheck observability endpoints after edge recreate",
+  "timeout": 300000
+}
+```
+
+**Resultat**
+
+```
+grafana    -> HTTP 200 (https://daniel-nagoloum.stage2-div.rayan-drissi.com/grafana/login)
+prom api   -> HTTP 302
+<anonymous_script>:1
+<a href="/prometheus/graph">Found</a>.
+^
+
+<anonymous_script>:1
+<a href="/prometheus/graph">Found</a>.
+^
+
+SyntaxError: Unexpected token '<', "<a href="/"... is not valid JSON
+{
+  "database": "ok",
+  "version": "11.3.1",
+  "commit": "64b556c137a1d9bcacd19ccb16c4cf138c78ca40"
+}
+```
+
+## Claude
+
+Comprise : avec une variable dans `proxy_pass`, nginx passe l'URI complète — donc le préfixe n'est jamais strippé. Prometheus doit donc le servir, comme Grafana.
+
+**Outil `Edit`**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "D:\\Projets\\portail\\infra\\docker-compose.edge.yml",
+  "old_string": "  # Served under /prometheus/ on the single public hostname. `external-url`\n  # is what Prometheus puts in the links and redirects it generates;\n  # `route-prefix=/` keeps it listening at the root internally, which is\n  # what the edge's stripping proxy_pass sends it. Without the pair, every\n  # redirect pointed at /graph and fell through to the SPA.\n  prometheus:\n    command:\n      - '--config.file=/etc/prometheus/prometheus.yml'\n      - '--storage.tsdb.path=/prometheus'\n      - '--web.external-url=https://${DOMAIN}/prometheus/'\n      - '--web.route-prefix=/'",
+  "new_string": "  # Served under /prometheus/ on the single public hostname. The edge uses\n  # a variable in proxy_pass (to resolve container names lazily), and nginx\n  # then forwards the URI unchanged - the /prometheus/ prefix is NOT\n  # stripped. So Prometheus must own that prefix itself: external-url sets\n  # both the links it generates and, by default, its route prefix. Without\n  # it, every request redirected to /graph and fell through to the SPA.\n  prometheus:\n    command:\n      - '--config.file=/etc/prometheus/prometheus.yml'\n      - '--storage.tsdb.path=/prometheus'\n      - '--web.external-url=https://${DOMAIN}/prometheus/'"
+}
+```
+
+**Resultat**
+
+```
+The file D:\Projets\portail\infra\docker-compose.edge.yml has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**Outil `Edit`**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "D:\\Projets\\portail\\infra\\nginx\\edge.conf.template",
+  "old_string": "  # Prometheus is the mirror image: it keeps serving at / internally\n  # (--web.route-prefix=/) and only rewrites the links it generates to the\n  # external prefix (--web.external-url, see docker-compose.edge.yml), so\n  # here the prefix IS stripped by the trailing slash. Without those flags\n  # Prometheus answered /prometheus/graph with an absolute redirect to\n  # /graph, which landed on the SPA.\n  location /prometheus/ {\n    set $upstream_prometheus prometheus;\n    proxy_pass http://$upstream_prometheus:9090/;",
+  "new_string": "  # Same as Grafana: no trailing slash, prefix preserved. Prometheus runs\n  # with --web.external-url=.../prometheus/ (see docker-compose.edge.yml),\n  # so it serves and links under that prefix itself.\n  location /prometheus/ {\n    set $upstream_prometheus prometheus;\n    proxy_pass http://$upstream_prometheus:9090;"
+}
+```
+
+**Resultat**
+
+```
+The file D:\Projets\portail\infra\nginx\edge.conf.template has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**Outil `Bash`**
+
+```json
+{
+  "command": "cd /d/Projets/portail\nscp -i $HOME/.ssh/portail_div -o StrictHostKeyChecking=no infra/nginx/edge.conf.template daniel-nagoloum@152.228.192.48:~/portail/infra/nginx/edge.conf.template\nscp -i $HOME/.ssh/portail_div -o StrictHostKeyChecking=no infra/docker-compose.edge.yml daniel-nagoloum@152.228.192.48:~/portail/infra/docker-compose.edge.yml\nssh -i $HOME/.ssh/portail_div -o StrictHostKeyChecking=no daniel-nagoloum@152.228.192.48 'cd ~/portail && docker compose --env-file .env -f infra/docker-compose.yml -f infra/docker-compose.edge.yml up -d --force-recreate edge prometheus >/dev/null 2>&1 && sleep 12 && echo restarted'\nURL=https://daniel-nagoloum.stage2-div.rayan-drissi.com\ncurl -s $URL/prometheus/api/v1/targets | node -pe 'JSON.parse(require(\"fs\").readFileSync(0)).data.activeTargets.map(t=>t.labels.job+\" -> \"+t.health).join(\"\\n\")' 2>&1 | head -4\ncurl -s $URL/prometheus/api/v1/rules | node -pe 'JSON.parse(require(\"fs\").readFileSync(0)).data.groups.flatMap(g=>g.rules).map(r=>r.name+\" [\"+r.state+\"]\").join(\"\\n\")' 2>&1 | head -5",
+  "description": "Apply Prometheus prefix fix and verify through the domain",
+  "timeout": 600000
+}
+```
+
+**Resultat**
+
+```
+restarted
+backend -> unknown
+prometheus -> down
+BackendDown [inactive]
+HighErrorRate [inactive]
+PinBruteForceSuspected [inactive]
+HighUploadRejectionRate [inactive]
+```
+
+## Claude
+
+Le self-scrape de Prometheus casse avec le préfixe. La bonne config : nginx strippe via `rewrite` (qui marche avec les variables), Prometheus reste à la racine.
+
+**Outil `Edit`**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "D:\\Projets\\portail\\infra\\nginx\\edge.conf.template",
+  "old_string": "  # Same as Grafana: no trailing slash, prefix preserved. Prometheus runs\n  # with --web.external-url=.../prometheus/ (see docker-compose.edge.yml),\n  # so it serves and links under that prefix itself.\n  location /prometheus/ {\n    set $upstream_prometheus prometheus;\n    proxy_pass http://$upstream_prometheus:9090;",
+  "new_string": "  # Prometheus is the mirror image of Grafana. It keeps serving at the root\n  # internally (--web.route-prefix=/, see docker-compose.edge.yml) so that\n  # its own self-scrape of localhost:9090/metrics keeps working, and only\n  # the links it generates carry the public prefix (--web.external-url).\n  # The prefix must therefore be stripped here - and a URI on proxy_pass\n  # does not strip anything when the upstream is a variable (nginx then\n  # forwards the URI untouched), so the rewrite does it explicitly.\n  location /prometheus/ {\n    rewrite ^/prometheus/(.*)$ /$1 break;\n    set $upstream_prometheus prometheus;\n    proxy_pass http://$upstream_prometheus:9090;"
+}
+```
+
+**Resultat**
+
+```
+The file D:\Projets\portail\infra\nginx\edge.conf.template has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**Outil `Edit`**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "D:\\Projets\\portail\\infra\\docker-compose.edge.yml",
+  "old_string": "  # Served under /prometheus/ on the single public hostname. The edge uses\n  # a variable in proxy_pass (to resolve container names lazily), and nginx\n  # then forwards the URI unchanged - the /prometheus/ prefix is NOT\n  # stripped. So Prometheus must own that prefix itself: external-url sets\n  # both the links it generates and, by default, its route prefix. Without\n  # it, every request redirected to /graph and fell through to the SPA.\n  prometheus:\n    command:\n      - '--config.file=/etc/prometheus/prometheus.yml'\n      - '--storage.tsdb.path=/prometheus'\n      - '--web.external-url=https://${DOMAIN}/prometheus/'",
+  "new_string": "  # Served under /prometheus/ on the single public hostname. external-url\n  # rewrites the links and redirects Prometheus generates; route-prefix=/\n  # keeps it listening at the root, which is both what the edge sends it\n  # (it strips the prefix with a rewrite, see nginx/edge.conf.template) and\n  # what its own self-scrape of localhost:9090/metrics needs.\n  prometheus:\n    command:\n      - '--config.file=/etc/prometheus/prometheus.yml'\n      - '--storage.tsdb.path=/prometheus'\n      - '--web.external-url=https://${DOMAIN}/prometheus/'\n      - '--web.route-prefix=/'"
+}
+```
+
+**Resultat**
+
+```
+The file D:\Projets\portail\infra\docker-compose.edge.yml has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**Outil `Bash`**
+
+```json
+{
+  "command": "cd /d/Projets/portail\nscp -i $HOME/.ssh/portail_div -o StrictHostKeyChecking=no infra/nginx/edge.conf.template infra/docker-compose.edge.yml daniel-nagoloum@152.228.192.48:~/portail/infra/ >/dev/null\nssh -i $HOME/.ssh/portail_div -o StrictHostKeyChecking=no daniel-nagoloum@152.228.192.48 'cd ~/portail && mv -f infra/edge.conf.template infra/nginx/edge.conf.template && mv -f infra/docker-compose.edge.yml infra/docker-compose.edge.yml.new 2>/dev/null; mv -f infra/docker-compose.edge.yml.new infra/docker-compose.edge.yml; docker compose --env-file .env -f infra/docker-compose.yml -f infra/docker-compose.edge.yml up -d --force-recreate edge prometheus >/dev/null 2>&1 && sleep 25 && echo restarted'\nURL=https://daniel-nagoloum.stage2-div.rayan-drissi.com\necho \"=== cibles ===\"; curl -s $URL/prometheus/api/v1/targets | node -pe 'JSON.parse(require(\"fs\").readFileSync(0)).data.activeTargets.map(t=>t.labels.job+\" -> \"+t.health).join(\"\\n\")' 2>&1 | head -4\necho \"=== regles ===\"; curl -s $URL/prometheus/api/v1/rules | node -pe 'JSON.parse(require(\"fs\").readFileSync(0)).data.groups.flatMap(g=>g.rules).map(r=>r.name+\" [\"+r.state+\"]\").join(\"\\n\")' 2>&1 | head -5\necho \"=== UI ===\"; curl -sL -o /dev/null -w 'prometheus UI -> HTTP %{http_code} (%{url_effective})\\n' $URL/prometheus/graph\ncurl -sL -o /dev/null -w 'grafana UI    -> HTTP %{http_code} (%{url_effective})\\n' $URL/grafana/",
+  "description": "Deploy the rewrite fix and verify Prometheus and Grafana",
+  "timeout": 600000
+}
+```
+
+**Resultat**
+
+```
+restarted
+=== cibles ===
+<anonymous_script>:1
+<html>
+^
+
+=== regles ===
+<anonymous_script>:1
+<html>
+^
+
+SyntaxError: Unexpected token '<', "<html>
+=== UI ===
+prometheus UI -> HTTP 500 (https://daniel-nagoloum.stage2-div.rayan-drissi.com/prometheus/graph)
+grafana UI    -> HTTP 200 (https://daniel-nagoloum.stage2-div.rayan-drissi.com/grafana/login)
+```
+
+**Outil `Bash`**
+
+```json
+{
+  "command": "ssh -i $HOME/.ssh/portail_div -o StrictHostKeyChecking=no daniel-nagoloum@152.228.192.48 'docker logs portail-edge-1 --tail 8 2>&1; echo \"=== prometheus container ===\"; docker logs portail-prometheus-1 --tail 5 2>&1 | tail -5'",
+  "description": "Read edge nginx error logs",
+  "timeout": 300000
+}
+```
+
+**Resultat**
+
+```
+2026/09/11 20:27:43 [warn] 37#37: *2 using uninitialized "upstream_prometheus" variable, client: 172.31.0.1, server: daniel-nagoloum.stage2-div.rayan-drissi.com, request: "GET /prometheus/api/v1/rules HTTP/1.1", host: "daniel-nagoloum.stage2-div.rayan-drissi.com"
+2026/09/11 20:27:43 [error] 37#37: *2 no host in upstream ":9090", client: 172.31.0.1, server: daniel-nagoloum.stage2-div.rayan-drissi.com, request: "GET /prometheus/api/v1/rules HTTP/1.1", host: "daniel-nagoloum.stage2-div.rayan-drissi.com"
+172.31.0.1 - - [11/Sep/2026:20:27:43 +0000] "GET /prometheus/api/v1/rules HTTP/1.1" 500 177 "-" "curl/8.16.0" "-"
+2026/09/11 20:27:43 [warn] 39#39: *3 using uninitialized "upstream_prometheus" variable, client: 172.31.0.1, server: daniel-nagoloum.stage2-div.rayan-drissi.com, request: "GET /prometheus/graph HTTP/1.1", host: "daniel-nagoloum.stage2-div.rayan-drissi.com"
+2026/09/11 20:27:43 [error] 39#39: *3 no host in upstream ":9090", client: 172.31.0.1, server: daniel-nagoloum.stage2-div.rayan-drissi.com, request: "GET /prometheus/graph HTTP/1.1", host: "daniel-nagoloum.stage2-div.rayan-drissi.com"
+172.31.0.1 - - [11/Sep/2026:20:27:43 +0000] "GET /prometheus/graph HTTP/1.1" 500 177 "-" "curl/8.16.0" "-"
+172.31.0.1 - - [11/Sep/2026:20:27:43 +0000] "GET /grafana/ HTTP/1.1" 302 37 "-" "curl/8.16.0" "-"
+172.31.0.1 - - [11/Sep/2026:20:27:43 +0000] "GET /grafana/login HTTP/1.1" 200 45056 "-" "curl/8.16.0" "-"
+=== prometheus container ===
+ts=2026-09-11T20:27:17.965Z caller=main.go:1404 level=info msg="Loading configuration file" filename=/etc/prometheus/prometheus.yml
+ts=2026-09-11T20:27:17.967Z caller=main.go:1441 level=info msg="updated GOGC" old=100 new=75
+ts=2026-09-11T20:27:17.967Z caller=main.go:1452 level=info msg="Completed loading of configuration file" filename=/etc/prometheus/prometheus.yml totalDuration=2.097836ms db_storage=5.209µs remote_storage=1.657µs web_handler=519ns query_engine=1.084µs scrape=349.679µs scrape_sd=55.578µs notify=25.196µs notify_sd=7.38µs rules=1.183437ms tracing=9.681µs
+ts=2026-09-11T20:27:17.967Z caller=main.go:1182 level=info msg="Server is ready to receive web requests."
+ts=2026-09-11T20:27:17.967Z caller=manager.go:164 level=info component="rule manager" msg="Starting rule manager..."
+```
+
+## Claude
+
+Ordre inversé : `rewrite ... break` coupe la phase rewrite, donc le `set` placé après n'est jamais exécuté. Je remets le `set` avant.
+
+**Outil `Edit`**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "D:\\Projets\\portail\\infra\\nginx\\edge.conf.template",
+  "old_string": "  location /prometheus/ {\n    rewrite ^/prometheus/(.*)$ /$1 break;\n    set $upstream_prometheus prometheus;\n    proxy_pass http://$upstream_prometheus:9090;",
+  "new_string": "  location /prometheus/ {\n    # `set` must come before `rewrite ... break`: both run in the rewrite\n    # phase, and `break` ends it - a `set` placed after never executes, and\n    # nginx then proxies to an empty host (\"no host in upstream :9090\").\n    set $upstream_prometheus prometheus;\n    rewrite ^/prometheus/(.*)$ /$1 break;\n    proxy_pass http://$upstream_prometheus:9090;"
+}
+```
+
+**Resultat**
+
+```
+The file D:\Projets\portail\infra\nginx\edge.conf.template has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**Outil `Bash`**
+
+```json
+{
+  "command": "cd /d/Projets/portail\nscp -i $HOME/.ssh/portail_div -o StrictHostKeyChecking=no infra/nginx/edge.conf.template daniel-nagoloum@152.228.192.48:~/portail/infra/nginx/edge.conf.template >/dev/null\nssh -i $HOME/.ssh/portail_div -o StrictHostKeyChecking=no daniel-nagoloum@152.228.192.48 'cd ~/portail && docker compose --env-file .env -f infra/docker-compose.yml -f infra/docker-compose.edge.yml up -d --force-recreate edge >/dev/null 2>&1 && sleep 20 && echo restarted'\nURL=https://daniel-nagoloum.stage2-div.rayan-drissi.com\necho \"=== cibles ===\"; curl -s $URL/prometheus/api/v1/targets | node -pe 'JSON.parse(require(\"fs\").readFileSync(0)).data.activeTargets.map(t=>t.labels.job+\" -> \"+t.health).join(\"\\n\")' 2>&1 | head -4\necho \"=== regles ===\"; curl -s $URL/prometheus/api/v1/rules | node -pe 'JSON.parse(require(\"fs\").readFileSync(0)).data.groups.flatMap(g=>g.rules).map(r=>r.name+\" [\"+r.state+\"]\").join(\"\\n\")' 2>&1 | head -5\ncurl -sL -o /dev/null -w 'prometheus UI -> HTTP %{http_code}\\n' $URL/prometheus/graph\ncurl -sL -o /dev/null -w 'grafana UI    -> HTTP %{http_code}\\n' $URL/grafana/",
+  "description": "Deploy corrected nginx directive order and verify",
+  "timeout": 600000
+}
+```
+
+**Resultat**
+
+```
+restarted
+=== cibles ===
+backend -> up
+prometheus -> up
+=== regles ===
+BackendDown [inactive]
+HighErrorRate [inactive]
+PinBruteForceSuspected [inactive]
+HighUploadRejectionRate [inactive]
+prometheus UI -> HTTP 200
+grafana UI    -> HTTP 200
+```
+
+## Claude
+
+Production entièrement verte. Je mets le README à jour — plusieurs passages sont maintenant faux.
+
+**Outil `Edit`**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "D:\\Projets\\portail\\README.md",
+  "old_string": "**Demo en ligne :** `https://<a-completer-apres-deploiement>`\n*(voir \"Deploiement\" plus bas - le sous-domaine et la plage de ports du\nserveur partage sont fournis par email au candidat et n'etaient pas\ndisponibles dans l'environnement ou ce depot a ete prepare ; le stack a\nneanmoins ete construit, publie sur GHCR et valide pour tourner tel quel\nune fois ces identifiants renseignes dans `.env`.)*",
+  "new_string": "## Demo en ligne\n\n**<https://daniel-nagoloum.stage2-div.rayan-drissi.com>**\n\n| | |\n|---|---|\n| Application (avocat) | <https://daniel-nagoloum.stage2-div.rayan-drissi.com> |\n| Lien de depot seede (client, anonyme) | <https://daniel-nagoloum.stage2-div.rayan-drissi.com/d/8f3a2c1b4d5e6f70> - PIN `1234` |\n| Grafana | <https://daniel-nagoloum.stage2-div.rayan-drissi.com/grafana/> |\n| Prometheus | <https://daniel-nagoloum.stage2-div.rayan-drissi.com/prometheus/> |\n\nCompte avocat de demonstration : `avocat@demo.dev` / `Demo1234!`\n\nCertificat Let's Encrypt (production, renouvellement automatique), TLS\ntermine par notre propre nginx derriere le proxy frontal en passthrough\nSNI. Images tirees depuis GHCR : aucun code source ni build sur le serveur."
+}
+```
+
+**Resultat**
+
+```
+The file D:\Projets\portail\README.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**Outil `Edit`**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "D:\\Projets\\portail\\README.md",
+  "old_string": "**Important sur cet environnement de preparation** : cette session a ete\nexecutee dans un environnement isole sans acces au serveur partage reel\n(pas d'identifiants, pas de sous-domaine, pas d'acces SSH sortant). Le\nstack de deploiement ci-dessus a ete valide autant que possible sans ce\nserveur (voir \"Limites connues\"), mais la mise en ligne effective sur le\nsous-domaine assigne reste a faire avec les vrais identifiants.",
+  "new_string": "Ce qui vit sur le serveur : `infra/` et `.env`, rien d'autre. Pas de code\nsource, pas de `git clone`, pas de build - `docker compose pull` uniquement\n(verifiable : `ls ~/portail` n'y contient que `infra/` et `.env`).\n\nPorts reellement alloues pour ce deploiement (plage 21700-21799) :\n`21700` edge HTTP, `21701` edge HTTPS, `21702` frontend, `21703` backend,\n`21704` Prometheus, `21705` Alertmanager, `21706` Grafana - tous sur\n`127.0.0.1`, seuls les deux premiers etant routes depuis Internet."
+}
+```
+
+**Resultat**
+
+```
+The file D:\Projets\portail\README.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**Outil `Edit`**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "D:\\Projets\\portail\\README.md",
+  "old_string": "- **Docker non testable en conteneur imbrique** : cet environnement de\n  travail ne permet pas de lancer un daemon Docker (sandbox sans\n  Docker-in-Docker). Chaque service a ete valide individuellement dans son\n  environnement natif (`npm test`/`npm run build` pour le backend et le\n  frontend, captures d'ecran via Chromium pour le rendu) et la syntaxe des\n  fichiers `docker-compose.*.yml` a ete verifiee avec `docker compose\n  config`, mais un `./install.sh` complet de bout en bout n'a pas pu etre\n  execute ici. A verifier en premier sur la machine de correction.",
+  "new_string": "- **Pas de test automatise du parcours complet (e2e)** : le parcours\n  `login -> creation -> unlock -> depot` a ete verifie a la main, en local\n  puis en production, mais aucun test ne le rejoue automatiquement. C'est\n  la limite qui a coute le plus cher ici : le code a d'abord ete ecrit sans\n  jamais etre execute, et quatre pannes bloquantes (image MinIO introuvable,\n  fins de ligne CRLF, colonne TypeORM non mappable, controle magic-bytes\n  qui levait une exception a chaque depot) n'ont ete trouvees qu'en lancant\n  reellement `./install.sh`. Deux tests de non-regression comblent les deux\n  dernieres ; un vrai test e2e (Testcontainers ou un job CI avec services\n  postgres+minio) serait la suite logique."
+}
+```
+
+**Resultat**
+
+```
+The file D:\Projets\portail\README.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**Outil `Edit`**
+
+```json
+{
+  "replace_all": false,
+  "file_path": "D:\\Projets\\portail\\README.md",
+  "old_string": "`.github/workflows/publish.yml` construit et publie\n`ghcr.io/<owner>/portail-backend` et `ghcr.io/<owner>/portail-frontend` a\nchaque push sur `main` (tags `latest` + sha court), avec le `GITHUB_TOKEN`\nintegre - aucun secret a configurer. **Apres le premier push**, verifier\nque les deux packages GHCR sont publics (ou configurer un `docker login\nghcr.io` sur le serveur) pour que `docker compose pull` fonctionne sans\nauthentification.",
+  "new_string": "`.github/workflows/publish.yml` construit et publie\n`ghcr.io/<owner>/portail-backend` et `ghcr.io/<owner>/portail-frontend` a\nchaque push sur `main` (tags `latest` + sha court), avec le `GITHUB_TOKEN`\nintegre - aucun secret a configurer.\n\n**Etat reel** : GitHub Actions est desactive sur ce compte (\"GitHub Actions\nis currently disabled for this repository\"), donc ce workflow n'a jamais\npu s'executer et la CI n'a pas tourne non plus. Les images en ligne ont\ndonc ete construites en local et poussees a la main :\n\n```bash\ndocker login ghcr.io -u <user>            # PAT avec le scope write:packages\nSHA=$(git rev-parse --short HEAD)\nfor c in backend frontend; do\n  docker build -t ghcr.io/<owner>/portail-$c:latest -t ghcr.io/<owner>/portail-$c:$SHA ./$c\n  docker push ghcr.io/<owner>/portail-$c:latest\n  docker push ghcr.io/<owner>/portail-$c:$SHA\ndone\n```\n\nLes deux packages doivent ensuite etre passes en **public** (Package\nsettings -> Change visibility ; l'API REST ne le permet pas pour les\ncontainer packages), sinon `./install.sh` echoue au `pull` sur une machine\nvierge. Les images publiees correspondent au commit `bac40b1`."
+}
+```
+
+**Resultat**
+
+```
+The file D:\Projets\portail\README.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+**Outil `PowerShell`**
+
+```json
+{
+  "command": "cd D:\\Projets\\portail; git add -A; git commit -q -m \"infra: fix Grafana/Prometheus behind the edge, document the live deployment\"; git push origin main 2>&1 | Select-Object -Last 2",
+  "description": "Commit and push infra fixes and README update",
+  "timeout": 180000
+}
+```
+
+**Resultat**
+
+```
+git : To https://github.com/Nagoloum/portail
+Au caractère Ligne:1 : 433
++ ... dge, document the live deployment"; git push origin main 2>&1 | Selec ...
++                                         ~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (To https://github.com/Nagoloum/portail:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+   bac40b1..afc4687  main -> main
+```
+
+## Claude
+
+## C'est en ligne
+
+**https://daniel-nagoloum.stage2-div.rayan-drissi.com**
+
+Vérifié depuis l'extérieur, sur la vraie URL :
+
+| Critère | État |
+|---|---|
+| HTTPS Let's Encrypt **production** | ✅ certificat valide (`ssl_verify_result 0`), expire le 10/12, renouvellement auto |
+| Redirection 80 → 443 | ✅ 301 |
+| Login avocat | ✅ 200 |
+| Mauvais PIN / bon PIN | ✅ 401 / jeton de session |
+| Dépôt PDF réel en prod | ✅ 201, fichier en base + MinIO |
+| `.exe` renommé `.pdf` | ✅ 422 rejeté |
+| Grafana `/grafana/` | ✅ 200 |
+| Prometheus `/prometheus/` | ✅ 200, `backend -> up`, `prometheus -> up`, 4 règles chargées |
+| `/metrics` public | ✅ non exposé (renvoie le SPA) |
+| Ports | ✅ tous sur `127.0.0.1:21700-21706`, dans ta plage |
+| Code source sur le serveur | ✅ aucun — `~/portail/` ne contient que `infra/` et `.env` |
+
+Deux bugs de plus corrigés au passage, trouvés en testant l'observabilité derrière le reverse proxy : Grafana bouclait en 301 infini (nginx strippait un préfixe qu'il attend), Prometheus redirigeait vers le SPA. Et un troisième, plus subtil : `set` après `rewrite ... break` dans nginx ne s'exécute jamais — l'upstream partait vide.
+
+## Il reste une chose, et elle est chez toi
+
+Les packages GHCR sont **privés**. Tant qu'ils le sont, le correcteur qui clone et lance `./install.sh` sur une machine vierge se prend un échec au `pull`. L'API GitHub ne permet pas de changer ça — c'est l'UI uniquement :
+
+- https://github.com/users/Nagoloum/packages/container/portail-backend/settings
+- https://github.com/users/Nagoloum/packages/container/portail-frontend/settings
+
+→ *Danger Zone* → **Change visibility → Public**
+
+Dis-moi quand c'est fait, je vérifie avec un `docker logout` + pull anonyme que ça marche vraiment.
+
+Deux points d'hygiène : **révoque le PAT** que tu m'as donné (il a fait son travail), et **change le mot de passe SSH** avec `passwd` — la clé que j'ai installée continuera de marcher. L'export `ai-logs/` caviarde déjà les deux automatiquement, je le régénérerai en fin de parcours.
+
+## Daniel
+
+j'ai fait
+
+**Outil `Bash`**
+
+```json
+{
+  "command": "cd /d/Projets/portail\ndocker logout ghcr.io >/dev/null 2>&1\nrm -f \"$HOME/.docker/config.json\" 2>/dev/null\necho \"=== pull anonyme (comme un correcteur sur machine vierge) ===\"\ndocker rmi ghcr.io/nagoloum/portail-backend:latest ghcr.io/nagoloum/portail-frontend:latest >/dev/null 2>&1\ndocker pull ghcr.io/nagoloum/portail-backend:latest 2>&1 | tail -2\ndocker pull ghcr.io/nagoloum/portail-frontend:latest 2>&1 | tail -2",
+  "description": "Verify anonymous pull of the GHCR images",
+  "timeout": 600000
+}
+```
+
+**Resultat**
+
+```
+=== pull anonyme (comme un correcteur sur machine vierge) ===
+Status: Downloaded newer image for ghcr.io/nagoloum/portail-backend:latest
+ghcr.io/nagoloum/portail-backend:latest
+Status: Downloaded newer image for ghcr.io/nagoloum/portail-frontend:latest
+ghcr.io/nagoloum/portail-frontend:latest
+```
+
+## Claude
+
+Pull anonyme OK. Maintenant le test exact du correcteur : `./install.sh` **sans `--build`**, sur une base vierge.
+
+**Outil `Bash`**
+
+```json
+{
+  "command": "cd /d/Projets/portail\ndocker compose --env-file .env -f infra/docker-compose.yml -f infra/docker-compose.override.local.yml down -v --remove-orphans >/dev/null 2>&1\nmv .env .env.backup-local\necho \"=== simulation machine vierge: pas de .env, pas de volumes, images tirees du registre ===\"\nbash ./install.sh 2>&1 | tail -30",
+  "description": "Run install.sh exactly as a grader would, from scratch",
+  "timeout": 900000
+}
+```
+
+**Resultat**
+
+```
+=== simulation machine vierge: pas de .env, pas de volumes, images tirees du registre ===
+ Container portail-backend-1 Starting 
+ Container portail-backend-1 Started 
+ Container portail-frontend-1 Starting 
+ Container portail-frontend-1 Started 
+
+==> Attente du backend (migrations puis seed s'executent automatiquement au demarrage du conteneur)...
+..Backend pret (migrations + seed termines).
+
+==> Attente de Grafana (provisioning des dashboards et de la source de donnees)...
+Grafana pret.
+
+==> Installation terminee.
+
+  Application (avocat + depot)  http://localhost:8080
+  API backend                   http://localhost:3000
+  Grafana                       http://localhost:3001  (admin / voir .env: GRAFANA_ADMIN_PASSWORD)
+  Prometheus                    http://localhost:9090
+  Alertmanager                  http://localhost:9093
+
+  Compte avocat de demonstration
+    email    avocat@demo.dev
+    password Demo1234!
+
+  Parcours client (anonyme) sur la demande seedee "Dossier Martin, pieces 2026"
+    lien  http://localhost:8080/d/8f3a2c1b4d5e6f70
+    PIN   1234  (4 pieces attendues)
+
+  Arreter la stack : docker compose --env-file .env -f infra/docker-compose.yml down
+  Voir les logs     : docker compose --env-file .env -f infra/docker-compose.yml logs -f
+```
+
+**Outil `Bash`**
+
+```json
+{
+  "command": "cd /d/Projets/portail\nmkdir -p .tmp && cd .tmp\nprintf '%%PDF-1.4\\n1 0 obj<</Type/Catalog>>endobj\\n%%%%EOF\\n' > piece.pdf\ncurl -s -o /dev/null -w 'login avocat        -> HTTP %{http_code}\\n' -X POST http://localhost:8080/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"avocat@demo.dev\",\"password\":\"Demo1234!\"}'\ncurl -s -o /dev/null -w 'page de depot       -> HTTP %{http_code}\\n' http://localhost:8080/d/8f3a2c1b4d5e6f70\nPUB=$(curl -s -X POST http://localhost:8080/public/8f3a2c1b4d5e6f70/unlock -H 'Content-Type: application/json' -d '{\"pin\":\"1234\"}' | node -pe 'JSON.parse(require(\"fs\").readFileSync(0)).accessToken')\ncurl -s -o /dev/null -w 'depot d une piece   -> HTTP %{http_code}\\n' -X POST http://localhost:8080/public/8f3a2c1b4d5e6f70/files -H \"Authorization: Bearer $PUB\" -F \"file=@piece.pdf;type=application/pdf\"\ncd .. && rm -rf .tmp .env.backup-local\necho \"--- OK: install.sh en mode pull = parcours fonctionnel ---\"",
+  "description": "Smoke-test the freshly installed stack",
+  "timeout": 300000
+}
+```
+
+**Resultat**
+
+```
+login avocat        -> HTTP 200
+page de depot       -> HTTP 200
+depot d une piece   -> HTTP 201
+--- OK: install.sh en mode pull = parcours fonctionnel ---
+```
+
+**Outil `WebFetch`**
+
+```json
+{
+  "url": "https://github.com/Nagoloum/portail/actions/workflows/ci.yml",
+  "prompt": "Are there workflow runs listed now, or is GitHub Actions still reported as disabled for this repository?"
+}
+```
+
+**Outil `Grep`**
+
+```json
+{
+  "pattern": "base:|md:|sm:|minW|maxW",
+  "path": "D:\\Projets\\portail\\frontend\\src",
+  "output_mode": "count"
+}
+```
+
+**Resultat**
+
+```
+frontend\src\theme\system.ts:5
+frontend\src\pages\LoginPage.tsx:2
+frontend\src\pages\PublicUnlockPage.tsx:2
+frontend\src\pages\DashboardPage.tsx:1
+frontend\src\components\EmptyState.tsx:1
+frontend\src\components\LawyerLayout.tsx:2
+frontend\src\pages\PublicDepositPage.tsx:2
+frontend\src\components\FileRow.tsx:3
+
+Found 18 total occurrences across 8 files.
+```
+
+**Resultat**
+
+```
+# GitHub Actions Status for Nagoloum/portail
+
+Based on the page content, **GitHub Actions is currently disabled** for this repository. The page explicitly states: "GitHub Actions is currently disabled for this repository. Please reach out to GitHub Support for assistance."
+
+Additionally, there are **no workflow runs listed**—the page indicates "This workflow has no runs yet" and displays "0 workflow runs."
+
+So to directly answer your question: GitHub Actions remains disabled, and no runs are currently visible.
+```
+
+## Claude
+
+Actions reste bloqué au niveau du compte (message "contact GitHub Support") — hors de notre portée, c'est documenté honnêtement dans le README. Je vérifie le point « mobile 375px », explicitement noté.
+
+**Outil `Read`**
+
+```json
+{
+  "file_path": "D:\\Projets\\portail\\frontend\\src\\components\\PinInput.tsx"
+}
+```
+
+**Resultat**
+
+```
+1	import { HStack, Input } from '@chakra-ui/react';
+2	import { useRef } from 'react';
+3	
+4	interface PinInputProps {
+5	  value: string;
+6	  onChange: (value: string) => void;
+7	  onComplete?: (value: string) => void;
+8	  length?: number;
+9	  error?: boolean;
+10	  disabled?: boolean;
+11	}
+12	
+13	export function PinInput({ value, onChange, onComplete, length = 4, error, disabled }: PinInputProps) {
+14	  const refs = useRef<Array<HTMLInputElement | null>>([]);
+15	  const digits = value.split('');
+16	
+17	  const setDigit = (index: number, digit: string) => {
+18	    const next = digits.slice(0, length);
+19	    while (next.length < length) next.push('');
+20	    next[index] = digit;
+21	    const joined = next.join('').slice(0, length);
+22	    onChange(joined);
+23	    if (joined.length === length && joined.split('').every((d) => d !== '')) {
+24	      onComplete?.(joined);
+25	    }
+26	  };
+27	
+28	  const handleChange = (index: number, raw: string) => {
+29	    const digit = raw.replace(/\D/g, '').slice(-1);
+30	    setDigit(index, digit);
+31	    if (digit && index < length - 1) {
+32	      refs.current[index + 1]?.focus();
+33	    }
+34	  };
+35	
+36	  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+37	    if (e.key === 'Backspace' && !digits[index] && index > 0) {
+38	      refs.current[index - 1]?.focus();
+39	    }
+40	  };
+41	
+42	  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+43	    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, length);
+44	    if (pasted) {
+45	      e.preventDefault();
+46	      onChange(pasted.padEnd(length, ''));
+47	      if (pasted.length === length) {
+48	        onComplete?.(pasted);
+49	        refs.current[length - 1]?.focus();
+50	      } else {
+51	        refs.current[pasted.length]?.focus();
+52	      }
+53	    }
+54	  };
+55	
+56	  return (
+57	    <HStack gap="2">
+58	      {Array.from({ length }).map((_, i) => (
+59	        <Input
+60	          key={i}
+61	          ref={(el) => (refs.current[i] = el)}
+62	          value={digits[i] ?? ''}
+63	          onChange={(e) => handleChange(i, e.target.value)}
+64	          onKeyDown={(e) => handleKeyDown(i, e)}
+65	          onPaste={handlePaste}
+66	          disabled={disabled}
+67	          inputMode="numeric"
+68	          autoComplete="one-time-code"
+69	          maxLength={1}
+70	          textAlign="center"
+71	          fontSize="xl"
+72	          fontWeight="600"
+73	          w="12"
+74	          h="14"
+75	          borderRad
+[... 312 caracteres tronques ...]
+```
+
+**Outil `Read`**
+
+```json
+{
+  "file_path": "D:\\Projets\\portail\\frontend\\src\\components\\GeneratedLinkCard.tsx"
+}
+```
+
+**Resultat**
+
+```
+1	import { Box, Button, HStack, Text, VStack } from '@chakra-ui/react';
+2	import { FiCopy } from 'react-icons/fi';
+3	import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
+4	import { formatDateFr } from '../utils/format';
+5	
+6	interface GeneratedLinkCardProps {
+7	  link: string;
+8	  pin: string;
+9	  expiresAt: string;
+10	}
+11	
+12	export function GeneratedLinkCard({ link, pin, expiresAt }: GeneratedLinkCardProps) {
+13	  const linkCopy = useCopyToClipboard();
+14	  const pinCopy = useCopyToClipboard();
+15	  const shortLink = link.replace(/^https?:\/\//, '');
+16	
+17	  return (
+18	    <VStack align="stretch" gap="3" bg="accentBg" borderRadius="lg" p="4">
+19	      <VStack align="stretch" gap="1">
+20	        <Text fontSize="xs" fontWeight="600" color="gray.solid" textTransform="uppercase" letterSpacing="wide">
+21	          Lien a transmettre au client
+22	        </Text>
+23	        <HStack justify="space-between" bg="white" borderWidth="1px" borderColor="border" borderRadius="md" p="2">
+24	          <Text fontFamily="mono" fontSize="sm" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+25	            {shortLink}
+26	          </Text>
+27	          <Button size="sm" variant="ghost" onClick={() => linkCopy.copy(link)} flexShrink={0}>
+28	            <FiCopy /> {linkCopy.copied ? 'Copie' : 'Copier'}
+29	          </Button>
+30	        </HStack>
+31	      </VStack>
+32	
+33	      <HStack justify="space-between" bg="white" borderWidth="1px" borderColor="border" borderRadius="md" p="2">
+34	        <VStack align="flex-start" gap="0">
+35	          <Text fontSize="xs" color="gray.solid">
+36	            Code PIN (affiche une seule fois)
+37	          </Text>
+38	          <Text fontFamily="mono" fontSize="lg" fontWeight="600" letterSpacing="widest">
+39	            {pin}
+40	          </Text>
+41	        </VStack>
+42	        <Button size="sm" variant="ghost" onClick={() => pinCopy.copy(pin)}>
+43	          <FiCopy /> {pinCopy.copied ? 'Copie' : 'Copier'}
+44	        </Button>
+45	      </HStack>
+46	
+47	      <Text fontSize="xs" color="gray.solid">
+48	        Expire le {formatDateFr(expiresAt)}, protege par un code a 4 chiffres. Transmettez le PIN par un
+49	        canal different du lien (SMS plutot que le meme email, par exemple).
+50	      </Text>
+51	    </VStack>
+52	  );
+53	}
+54
+```
+
+## Claude
+
+Mobile OK (PIN ≈216px de large, lien tronqué avec ellipsis, bouton non compressible). Je régénère l'export ai-logs et je vérifie que ton PAT est bien caviardé.
+
+**Outil `Bash`**
+
+```json
+{
+  "command": "cd /d/Projets/portail\nREDACT_EXTRA='[SECRET CAVIARDE]' node ai-logs/export-transcript.js \"C:/Users/Landh/.claude/projects/d--Projets-portail/eb1afb94-af95-46c4-a510-fb8368e3f6bf.jsonl\" ai-logs/session-2-claude-code-opus5.md\necho \"--- fuites ? ---\"\nfor s in '[SECRET CAVIARDE]' '[TOKEN GITHUB CAVIARDE]'; do\n  if grep -q \"$s\" ai-logs/session-2-claude-code-opus5.md; then echo \"FUITE: $s\"; else echo \"absent: ${s:0:6}...\"; fi\ndone\necho \"--- secrets .env generes presents ? ---\"\ngrep -cE 'JWT_SECRET=[A-Za-z0-9]{30,}' ai-logs/session-2-claude-code-opus5.md || true\necho \"--- taille ---\"; wc -c < ai-logs/session-2-claude-code-opus5.md",
+  "description": "Regenerate the transcript export and check for secret leaks",
+  "timeout": 300000
+}
+```

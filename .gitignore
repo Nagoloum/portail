@@ -1,0 +1,14 @@
+node_modules/
+dist/
+build/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+
+# infra runtime state (certs, volumes if ever bind-mounted)
+infra/certbot/conf/
+infra/certbot/www/
+*.tsbuildinfo

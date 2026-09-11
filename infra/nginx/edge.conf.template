@@ -1,0 +1,64 @@
+# TLS-terminating edge, real production certs via certbot (see
+# infra/certbot/init-letsencrypt.sh). ${DOMAIN} is envsubst'd by the
+# official nginx image entrypoint at container start (see
+# docker-compose.edge.yml). The `resolver` + variable-in-proxy_pass
+# pattern forces nginx to resolve upstream container names at request
+# time instead of config-load time, so a restart order race never
+# crash-loops this container.
+resolver 127.0.0.11 valid=10s;
+
+server {
+  listen 80;
+  server_name ${DOMAIN};
+
+  location /.well-known/acme-challenge/ {
+    root /var/www/certbot;
+  }
+
+  location / {
+    return 301 https://$host$request_uri;
+  }
+}
+
+server {
+  listen 443 ssl;
+  http2 on;
+  server_name ${DOMAIN};
+
+  ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+  ssl_protocols TLSv1.2 TLSv1.3;
+  ssl_session_cache shared:SSL:10m;
+
+  # Deposits are up to 20 Mo (see MAX_FILE_SIZE_MB) plus multipart overhead.
+  client_max_body_size 25m;
+
+  location / {
+    set $upstream_frontend frontend;
+    proxy_pass http://$upstream_frontend:80;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+  }
+
+  # Observability, reachable on the same domain+port since only two ports
+  # in our range are actually internet-routed (see README "Routage").
+  # Grafana/Prometheus own auth (Grafana login, see README) is the access
+  # control here - there is no third public hostname to hide them behind.
+  location /grafana/ {
+    set $upstream_grafana grafana;
+    proxy_pass http://$upstream_grafana:3000/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+  }
+
+  location /prometheus/ {
+    set $upstream_prometheus prometheus;
+    proxy_pass http://$upstream_prometheus:9090/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+  }
+}

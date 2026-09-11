@@ -1,0 +1,16 @@
+# Optional dev convenience: `./install.sh --build` adds this file so
+# backend/frontend are built from local source instead of pulled from
+# GHCR. Never used in the default one-click path, and never on the real
+# server (see README "Deploiement" - images are always pulled there).
+services:
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    image: portail-backend:local
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    image: portail-frontend:local

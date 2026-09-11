@@ -1,0 +1,60 @@
+# Overlay used ONLY on the real, internet-facing server - never by the
+# local one-click install.sh. Adds the TLS-terminating edge nginx and its
+# certbot renewer in front of the `frontend` service from docker-compose.yml.
+#
+# Usage (from repo root, on the target server):
+#   docker compose --env-file .env -f infra/docker-compose.yml -f infra/docker-compose.edge.yml up -d
+#
+# See infra/certbot/init-letsencrypt.sh to obtain the first certificate.
+name: portail
+
+services:
+  # Point the two services that generate absolute URLs at the real domain
+  # instead of the local install.sh defaults (localhost:*).
+  backend:
+    environment:
+      FRONTEND_PUBLIC_BASE_URL: https://${DOMAIN}
+
+  grafana:
+    environment:
+      GF_SERVER_ROOT_URL: https://${DOMAIN}/grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH: 'true'
+
+  edge:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env, e.g. depot.example.com}
+    volumes:
+      - ./nginx/edge.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - certbot_conf:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot:ro
+    ports:
+      # These are the two ports the shared front proxy relays to (see
+      # README "Routage") - the 1st for :80/Host, the 2nd for :443/SNI.
+      - '127.0.0.1:${EDGE_HTTP_PORT:?set EDGE_HTTP_PORT in .env}:80'
+      - '127.0.0.1:${EDGE_HTTPS_PORT:?set EDGE_HTTPS_PORT in .env}:443'
+    depends_on:
+      - frontend
+    networks: [portail]
+
+  certbot:
+    image: certbot/certbot:v3.1.0
+    restart: unless-stopped
+    volumes:
+      - certbot_conf:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    entrypoint: >
+      sh -c "trap exit TERM; while :; do
+        certbot renew --webroot -w /var/www/certbot --quiet;
+        sleep 12h & wait $${!};
+      done"
+    networks: [portail]
+
+volumes:
+  # Fixed names (rather than the default ${project}_${volume} guess) so
+  # infra/certbot/init-letsencrypt.sh can mount them directly by name.
+  certbot_conf:
+    name: portail_certbot_conf
+  certbot_www:
+    name: portail_certbot_www

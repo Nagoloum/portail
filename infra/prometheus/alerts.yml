@@ -1,0 +1,55 @@
+groups:
+  - name: portail
+    rules:
+      # The API is unreachable - everything else in this file is moot if
+      # this fires, so it is the highest-priority signal.
+      - alert: BackendDown
+        expr: up{job="backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Le backend ne repond plus'
+          description: 'Prometheus ne parvient plus a scraper backend:3000/metrics depuis 1 minute.'
+
+      # RED method: error rate. A spike here means clients are failing,
+      # regardless of which route.
+      - alert: HighErrorRate
+        expr: >
+          sum(rate(http_request_duration_seconds_count{status_code=~"5.."}[5m]))
+          /
+          sum(rate(http_request_duration_seconds_count[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Taux d''erreurs 5xx eleve sur l''API'
+          description: 'Plus de 5% des requetes HTTP echouent en erreur serveur depuis 5 minutes.'
+
+      # Security signal: a client's PIN is only 4 digits (10 000
+      # combinations) - a sustained spike in failures across links is
+      # exactly what an online brute-force attempt against a public link
+      # looks like, on top of the per-link lockout in PublicService.
+      - alert: PinBruteForceSuspected
+        expr: sum(rate(pin_verification_total{result="failure"}[5m])) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Volume eleve d''echecs de code PIN'
+          description: 'Plus de 0.5 echec de PIN par seconde en moyenne sur 5 minutes, tous liens confondus.'
+
+      # Product signal: clients repeatedly failing to deposit (wrong file
+      # type, expired link) points at a UX problem or a bug, not noise.
+      - alert: HighUploadRejectionRate
+        expr: >
+          sum(rate(deposit_files_rejected_total[15m]))
+          /
+          (sum(rate(deposit_files_rejected_total[15m])) + sum(rate(deposit_files_uploaded_total[15m])))
+          > 0.3
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Taux de rejet des depots eleve'
+          description: 'Plus de 30% des tentatives de depot sont rejetees depuis 15 minutes.'

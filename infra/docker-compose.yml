@@ -1,0 +1,132 @@
+name: portail
+
+x-backend-env: &backend-env
+  NODE_ENV: production
+  PORT: 3000
+  DB_HOST: postgres
+  DB_PORT: 5432
+  DB_USER: ${DB_USER:-portail}
+  DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+  DB_NAME: ${DB_NAME:-portail}
+  JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+  JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+  PUBLIC_JWT_EXPIRES_IN: ${PUBLIC_JWT_EXPIRES_IN:-45m}
+  PIN_PEPPER: ${PIN_PEPPER:?set PIN_PEPPER in .env}
+  FRONTEND_PUBLIC_BASE_URL: ${FRONTEND_PUBLIC_BASE_URL:-http://localhost:8080}
+  S3_ENDPOINT: http://minio:9000
+  S3_REGION: us-east-1
+  S3_BUCKET: ${S3_BUCKET:-portail-pieces}
+  S3_ACCESS_KEY: ${MINIO_ROOT_USER:-portail}
+  S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
+  S3_FORCE_PATH_STYLE: 'true'
+  MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-20}
+  LINK_DEFAULT_TTL_DAYS: ${LINK_DEFAULT_TTL_DAYS:-7}
+  PIN_MAX_ATTEMPTS: ${PIN_MAX_ATTEMPTS:-5}
+  PIN_LOCKOUT_MINUTES: ${PIN_LOCKOUT_MINUTES:-15}
+  SEED_LAWYER_EMAIL: ${SEED_LAWYER_EMAIL:-avocat@demo.dev}
+  SEED_LAWYER_PASSWORD: ${SEED_LAWYER_PASSWORD:-Demo1234!}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-portail}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      POSTGRES_DB: ${DB_NAME:-portail}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-portail}']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [portail]
+    # Never published to the host: only the backend talks to it.
+
+  minio:
+    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-portail}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [portail]
+    # Never published to the host either (see StorageService): the backend
+    # is the only reader/writer of the bucket, over the docker network.
+
+  backend:
+    image: ghcr.io/${GITHUB_OWNER:-nagoloum}/portail-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment: *backend-env
+    depends_on:
+      postgres: { condition: service_healthy }
+      minio: { condition: service_healthy }
+    ports:
+      - '127.0.0.1:${BACKEND_PORT:-3000}:3000'
+    networks: [portail]
+
+  frontend:
+    image: ghcr.io/${GITHUB_OWNER:-nagoloum}/portail-frontend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - '127.0.0.1:${APP_HTTP_PORT:-8080}:80'
+    networks: [portail]
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    ports:
+      - '127.0.0.1:${PROMETHEUS_PORT:-9090}:9090'
+    networks: [portail]
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    restart: unless-stopped
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - '127.0.0.1:${ALERTMANAGER_PORT:-9093}:9093'
+    networks: [portail]
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3001/}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    ports:
+      - '127.0.0.1:${GRAFANA_PORT:-3001}:3000'
+    networks: [portail]
+
+networks:
+  portail:
+
+volumes:
+  postgres_data:
+  minio_data:
+  prometheus_data:
+  grafana_data:

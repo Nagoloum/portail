@@ -314,10 +314,19 @@ POST /repos/<owner>/portail/actions/workflows/ci.yml/dispatches
      -> 422 { "message": "Actions has been disabled for this user." }
 ```
 
+Le test qui tranche : `GET /actions/runs` renvoie `total_count: 0` apres
+une dizaine de push sur `main`, alors que les deux workflows sont
+`state: active` et que leurs declencheurs correspondent. **Un run
+declenche par un push n'implique aucun jeton** - GitHub le cree lui-meme
+a partir des fichiers de workflow - donc ce n'est ni un probleme de scope
+(le jeton porte bien `workflow`), ni un role insuffisant (`admin: true`,
+proprietaire de type User et non organisation).
+
 Le blocage est donc au niveau du compte, pas du depot ni du workflow :
 aucun reglage de projet ne le leve, et ce n'est pas une question de quota
 (les depots publics ont des minutes illimitees). Consequence : ni `ci.yml`
-ni `publish.yml` n'ont jamais pu s'executer.
+ni `publish.yml` n'ont jamais pu s'executer. Un ticket est ouvert aupres
+du support GitHub, seule voie de resolution.
 
 `make verify` execute en local exactement la meme sequence que `ci.yml`
 (install propre, build et tests des deux applications), ce qui laisse la

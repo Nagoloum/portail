@@ -492,7 +492,17 @@ done
 Les deux packages doivent ensuite etre passes en **public** (Package
 settings -> Change visibility ; l'API REST ne le permet pas pour les
 container packages), sinon `./install.sh` echoue au `pull` sur une machine
-vierge. Les images publiees correspondent au commit `bac40b1`.
+vierge.
+
+Les images publiees correspondent au commit **`4e161d4`** (taguees
+`latest` et `4e161d4`), verifiees accessibles sans authentification :
+
+```bash
+docker manifest inspect ghcr.io/nagoloum/portail-backend:4e161d4
+```
+
+C'est la version deployee sur le domaine de demonstration : `./install.sh`
+sur une machine vierge installe exactement ce qui tourne en ligne.
 
 ### Serveur partage : routage
 

@@ -1,11 +1,13 @@
 import { Box, Button, HStack, Text, VStack } from '@chakra-ui/react';
 import { Link as RouterLink } from 'react-router-dom';
-import { FiCopy } from 'react-icons/fi';
+import { FiArrowRight, FiCheck, FiClock, FiCopy } from 'react-icons/fi';
 import { RequestSummary } from '../api/types';
 import { StatusBadge } from './StatusBadge';
+import { CountPill } from './CountPill';
 import { formatDateFr, formatExpiry } from '../utils/format';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 
+/** White, 1px border, 12px radius, no shadow - per the charte. */
 export function RequestCard({ request }: { request: RequestSummary }) {
   const { copy, copied } = useCopyToClipboard();
 
@@ -19,32 +21,34 @@ export function RequestCard({ request }: { request: RequestSummary }) {
       display="flex"
       flexDirection="column"
       gap="3"
+      transition="border-color 0.15s ease"
+      _hover={{ borderColor: 'accentSoft' }}
     >
-      <HStack justify="space-between" align="flex-start">
-        <VStack align="flex-start" gap="0.5">
+      <HStack justify="space-between" align="flex-start" gap="3">
+        <VStack align="flex-start" gap="1" minW="0">
           <RouterLink to={`/dossiers/${request.id}`}>
-            <Text fontWeight="600" fontSize="md" _hover={{ color: 'primary' }}>
-              {request.title}
-            </Text>
+            <HStack gap="1.5" color="text" _hover={{ color: 'primary' }} transition="color 0.15s ease">
+              <Text fontWeight="600" fontSize="md">
+                {request.title}
+              </Text>
+              <FiArrowRight aria-hidden />
+            </HStack>
           </RouterLink>
-          <Text fontSize="xs" color="gray.solid">
-            Cree le {formatDateFr(request.createdAt)}, {formatExpiry(request.status, request.expiresAt).toLowerCase()}
-          </Text>
+          <HStack gap="1.5" color="gray.solid" fontSize="xs">
+            <FiClock aria-hidden />
+            <Text>
+              Cree le {formatDateFr(request.createdAt)}, {formatExpiry(request.status, request.expiresAt).toLowerCase()}
+            </Text>
+          </HStack>
         </VStack>
         <StatusBadge status={request.status} />
       </HStack>
 
-      <Text fontSize="sm" color="gray.solid">
-        {request.uploadedCount} piece{request.uploadedCount > 1 ? 's' : ''} sur {request.requiredCount}
-      </Text>
+      <CountPill uploaded={request.uploadedCount} required={request.requiredCount} />
 
-      <Button
-        variant="outline"
-        size="sm"
-        alignSelf="flex-start"
-        onClick={() => copy(request.link)}
-      >
-        <FiCopy /> {copied ? 'Lien copie' : 'Copier le lien'}
+      <Button variant="outline" size="sm" alignSelf="flex-start" onClick={() => copy(request.link)}>
+        {copied ? <FiCheck aria-hidden /> : <FiCopy aria-hidden />}
+        {copied ? 'Lien copie' : 'Copier le lien'}
       </Button>
     </Box>
   );

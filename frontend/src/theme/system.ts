@@ -56,10 +56,46 @@ const customConfig = defineConfig({
       color: 'text',
       fontFamily: 'body',
       colorScheme: 'light',
+      // Inter's own stylistic sets: cv11 gives the single-storey `a`-free
+      // disambiguated `l`/`1`/`I`, ss01 the alternate digits. They matter
+      // here because the interface is full of PINs, counts and tokens
+      // where a `1` must never read as an `l`.
+      fontFeatureSettings: "'cv11', 'ss01'",
+      fontOpticalSizing: 'auto',
+      textRendering: 'optimizeLegibility',
+      lineHeight: '1.55',
     },
+    // Titles: 600 per the charte, with the tracking tightened as size
+    // grows - Inter is drawn for text, and large text set at default
+    // tracking reads loose.
+    'h1, h2, h3': { letterSpacing: '-0.015em' },
+    // Anything the user has to read digit by digit gets fixed-width
+    // figures so columns and progress values do not jitter.
+    'code, kbd, samp, pre': { fontVariantNumeric: 'tabular-nums' },
     '*::selection': { bg: 'accentSoft' },
   },
   theme: {
+    /**
+     * Overlay motion, defined once for the whole app. Same easing as the
+     * charte's scroll reveal - cubic-bezier(0.22, 1, 0.36, 1) - but
+     * shorter: a dialog answers a click, it is not ambient motion.
+     * `prefers-reduced-motion` is honoured globally in index.html.
+     */
+    keyframes: {
+      'portail-overlay-in': {
+        from: { opacity: 0 },
+        to: { opacity: 1 },
+      },
+      'portail-dialog-in': {
+        from: { opacity: 0, transform: 'translateY(16px) scale(0.98)' },
+        to: { opacity: 1, transform: 'translateY(0) scale(1)' },
+      },
+      'portail-confirm-pop': {
+        '0%': { opacity: 0, transform: 'scale(0.8)' },
+        '60%': { opacity: 1, transform: 'scale(1.04)' },
+        '100%': { opacity: 1, transform: 'scale(1)' },
+      },
+    },
     tokens: {
       colors: {
         primary: { value: '#5100FF' },

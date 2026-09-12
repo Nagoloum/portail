@@ -2,9 +2,10 @@ import { Box, Heading, HStack, Text, VStack } from '@chakra-ui/react';
 import axios from 'axios';
 import { useState } from 'react';
 import { Dropzone } from '../components/Dropzone';
+import { Alert } from '../components/Alert';
 import { FileRow, UploadItem } from '../components/FileRow';
 import { StatusBadge } from '../components/StatusBadge';
-import { RevealOnMount } from '../components/RevealOnMount';
+import { Reveal } from '../components/Reveal';
 import { uploadFile } from '../api/public';
 import { PublicRequestView } from '../api/types';
 import { formatDateFr } from '../utils/format';
@@ -18,13 +19,30 @@ interface PublicDepositPageProps {
   onViewChange: (view: PublicRequestView) => void;
 }
 
+/**
+ * Maps a status code to a sentence written here. The server's own
+ * `message` is deliberately ignored: it is written for an API client,
+ * can name an internal rule or entity, and would be shown verbatim to a
+ * client who can do nothing with it. One status, one sentence.
+ */
 function uploadErrorMessage(err: unknown): string {
   if (axios.isAxiosError(err)) {
-    if (err.response?.status === 422) return err.response.data?.message ?? 'Type de fichier non autorise';
-    if (err.response?.status === 409 || err.response?.status === 410) return 'Ce depot n\'accepte plus de pieces';
-    if (err.response?.status === 413) return 'Fichier trop volumineux (20 Mo maximum)';
+    switch (err.response?.status) {
+      case 422:
+        return 'Format refuse. PDF, JPG ou PNG uniquement.';
+      case 413:
+        return 'Fichier trop volumineux. 20 Mo maximum.';
+      case 409:
+      case 410:
+        return 'Ce depot n\'accepte plus de pieces.';
+      case 401:
+      case 403:
+        return 'Session expiree. Ressaisissez le code PIN.';
+      default:
+        if (!err.response) return 'Connexion interrompue. Reessayez.';
+    }
   }
-  return 'Echec du depot, reessayez';
+  return 'Le depot a echoue. Reessayez.';
 }
 
 export function PublicDepositPage({ token, view, onViewChange }: PublicDepositPageProps) {
@@ -90,7 +108,7 @@ export function PublicDepositPage({ token, view, onViewChange }: PublicDepositPa
 
   return (
     <Box minH="100dvh" bg="accentBg" py={{ base: '6', md: '10' }} px="4">
-      <RevealOnMount maxW="lg" mx="auto">
+      <Reveal maxW="lg" mx="auto">
         <VStack align="stretch" gap="5">
           <VStack align="stretch" gap="2" bg="white" borderWidth="1px" borderColor="border" borderRadius="lg" p="5">
             <HStack justify="space-between" align="flex-start" wrap="wrap" gap="2">
@@ -104,14 +122,10 @@ export function PublicDepositPage({ token, view, onViewChange }: PublicDepositPa
           </VStack>
 
           {view.status === 'COMPLETE' && (
-            <Box bg="successBg" color="success" borderRadius="md" px="4" py="3" fontSize="sm" textAlign="center">
-              Toutes les pieces demandees ont ete deposees. Merci.
-            </Box>
+            <Alert tone="success">Toutes les pieces demandees ont ete deposees.</Alert>
           )}
           {view.status === 'EXPIRED' && (
-            <Box bg="dangerBg" color="danger" borderRadius="md" px="4" py="3" fontSize="sm" textAlign="center">
-              Ce lien a expire. Contactez votre avocat pour en obtenir un nouveau.
-            </Box>
+            <Alert>Ce lien a expire. Contactez votre avocat pour en obtenir un nouveau.</Alert>
           )}
 
           {accepting && <Dropzone onFiles={handleFiles} />}
@@ -133,7 +147,7 @@ export function PublicDepositPage({ token, view, onViewChange }: PublicDepositPa
             </VStack>
           )}
         </VStack>
-      </RevealOnMount>
+      </Reveal>
     </Box>
   );
 }

@@ -1,15 +1,17 @@
 import { Box, Button, Text, VStack } from '@chakra-ui/react';
 import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { FiFolder } from 'react-icons/fi';
 import { login } from '../api/auth';
 import { setLawyerToken } from '../api/client';
 import { TextField } from '../components/TextField';
 import { Card } from '../components/Card';
-import { RevealOnMount } from '../components/RevealOnMount';
+import { Alert } from '../components/Alert';
+import { Reveal } from '../components/Reveal';
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('avocat@demo.dev');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -31,17 +33,32 @@ export function LoginPage() {
 
   return (
     <Box minH="100dvh" bg="accentBg" display="flex" alignItems="center" justifyContent="center" px="4">
-      <RevealOnMount w="full" maxW="sm">
+      <Reveal w="full" maxW="sm">
         <Card p={{ base: '6', md: '8' }}>
           <form onSubmit={handleSubmit}>
             <VStack align="stretch" gap="5">
-              <VStack align="stretch" gap="1">
-                <Text fontSize="lg" fontWeight="600">
-                  Portail de depot de pieces
-                </Text>
-                <Text fontSize="sm" color="gray.solid">
-                  Espace avocat
-                </Text>
+              <VStack align="stretch" gap="3">
+                <Box
+                  w="10"
+                  h="10"
+                  borderRadius="md"
+                  bg="primary"
+                  color="white"
+                  display="flex"
+                  alignItems="center"
+                  justifyContent="center"
+                  fontSize="lg"
+                >
+                  <FiFolder aria-hidden />
+                </Box>
+                <VStack align="stretch" gap="1">
+                  <Text fontSize="lg" fontWeight="600">
+                    Portail de depot de pieces
+                  </Text>
+                  <Text fontSize="sm" color="gray.solid">
+                    Espace avocat
+                  </Text>
+                </VStack>
               </VStack>
 
               <TextField
@@ -60,23 +77,19 @@ export function LoginPage() {
                 required
               />
 
-              {error && (
-                <Box bg="dangerBg" color="danger" borderRadius="md" px="3" py="2" fontSize="sm">
-                  {error}
-                </Box>
-              )}
+              {error && <Alert>{error}</Alert>}
 
               <Button type="submit" w="full" disabled={loading}>
                 {loading ? 'Connexion...' : 'Se connecter'}
               </Button>
-
-              <Text fontSize="xs" color="gray.solid" textAlign="center">
-                Demo: avocat@demo.dev / Demo1234!
-              </Text>
+              {/* The demo credentials live in the README and in the
+                  install.sh summary, not on the login screen: printing a
+                  working account on the page is the one piece of sensitive
+                  text an interface should never carry. */}
             </VStack>
           </form>
         </Card>
-      </RevealOnMount>
+      </Reveal>
     </Box>
   );
 }

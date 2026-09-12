@@ -1,14 +1,16 @@
 import { Box, Button, Heading, HStack, Spinner, Text, VStack } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
 import { Link as RouterLink, useParams } from 'react-router-dom';
-import { FiArrowLeft, FiCopy } from 'react-icons/fi';
+import { FiArrowLeft, FiCheck, FiCopy, FiClock, FiInbox, FiLink } from 'react-icons/fi';
 import { getRequest } from '../api/requests';
 import { LawyerLayout } from '../components/LawyerLayout';
 import { StatusBadge } from '../components/StatusBadge';
+import { CountPill } from '../components/CountPill';
+import { Alert } from '../components/Alert';
 import { Card } from '../components/Card';
 import { FileRow } from '../components/FileRow';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
-import { formatBytes, formatDateFr, formatExpiry } from '../utils/format';
+import { formatDateFr, formatExpiry } from '../utils/format';
 
 export function RequestDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -35,49 +37,67 @@ export function RequestDetailPage() {
           </HStack>
         )}
 
-        {isError && (
-          <Box bg="dangerBg" color="danger" borderRadius="md" px="4" py="3" fontSize="sm">
-            Demande introuvable.
-          </Box>
-        )}
+        {isError && <Alert>Cette demande est introuvable.</Alert>}
 
         {request && (
           <>
             <HStack justify="space-between" align="flex-start" wrap="wrap" gap="3">
-              <VStack align="flex-start" gap="1">
+              <VStack align="flex-start" gap="1.5">
                 <Heading size="lg">{request.title}</Heading>
-                <Text fontSize="sm" color="gray.solid">
-                  Cree le {formatDateFr(request.createdAt)}, {formatExpiry(request.status, request.expiresAt).toLowerCase()}
-                </Text>
+                <HStack gap="1.5" color="gray.solid" fontSize="sm">
+                  <FiClock aria-hidden />
+                  <Text>
+                    Cree le {formatDateFr(request.createdAt)},{' '}
+                    {formatExpiry(request.status, request.expiresAt).toLowerCase()}
+                  </Text>
+                </HStack>
               </VStack>
               <StatusBadge status={request.status} />
             </HStack>
 
             <Card p="4">
               <HStack justify="space-between" wrap="wrap" gap="2">
-                <VStack align="flex-start" gap="0">
-                  <Text fontSize="xs" color="gray.solid">
-                    Lien public
-                  </Text>
-                  <Text fontFamily="mono" fontSize="sm">
+                <VStack align="flex-start" gap="0" minW="0">
+                  <HStack gap="1.5" color="gray.solid">
+                    <FiLink aria-hidden />
+                    <Text fontSize="xs">Lien public</Text>
+                  </HStack>
+                  <Text fontFamily="mono" fontSize="sm" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
                     {request.link.replace(/^https?:\/\//, '')}
                   </Text>
                 </VStack>
-                <Button size="sm" variant="outline" onClick={() => linkCopy.copy(request.link)}>
-                  <FiCopy /> {linkCopy.copied ? 'Copie' : 'Copier le lien'}
+                <Button size="sm" variant="outline" onClick={() => linkCopy.copy(request.link)} flexShrink={0}>
+                  {linkCopy.copied ? <FiCheck aria-hidden /> : <FiCopy aria-hidden />}
+                  {linkCopy.copied ? 'Copie' : 'Copier le lien'}
                 </Button>
               </HStack>
             </Card>
 
             <VStack align="stretch" gap="3">
-              <Text fontWeight="600" fontSize="sm">
-                {request.uploadedCount} piece{request.uploadedCount > 1 ? 's' : ''} sur {request.requiredCount}
-              </Text>
+              <HStack justify="space-between" wrap="wrap" gap="2">
+                <Text fontWeight="600" fontSize="sm">
+                  Pieces deposees
+                </Text>
+                <CountPill uploaded={request.uploadedCount} required={request.requiredCount} />
+              </HStack>
 
               {request.files.length === 0 ? (
-                <Box bg="accentBg" borderRadius="md" px="4" py="6" textAlign="center" fontSize="sm" color="gray.solid">
-                  Aucune piece deposee pour le moment.
-                </Box>
+                <VStack
+                  bg="accentBg"
+                  borderRadius="md"
+                  px="4"
+                  py="8"
+                  gap="2"
+                  textAlign="center"
+                  fontSize="sm"
+                  color="gray.solid"
+                >
+                  <Box fontSize="xl" color="secondary">
+                    <FiInbox aria-hidden />
+                  </Box>
+                  <Text>Aucune piece deposee pour le moment.</Text>
+                  <Text fontSize="xs">Le client depose ses pieces depuis le lien ci-dessus.</Text>
+                </VStack>
               ) : (
                 <VStack align="stretch" gap="2">
                   {request.files.map((file) => (
@@ -93,11 +113,6 @@ export function RequestDetailPage() {
                     />
                   ))}
                 </VStack>
-              )}
-              {request.files.length > 0 && (
-                <Text fontSize="xs" color="gray.solid">
-                  Derniere piece: {formatBytes(request.files[request.files.length - 1].size)}
-                </Text>
               )}
             </VStack>
           </>

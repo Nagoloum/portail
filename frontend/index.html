@@ -5,11 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Variable axis rather than four static cuts: one file, exact
+         weights, and no synthetic bolding between 400 and 600. -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&display=swap"
       rel="stylesheet"
     />
     <title>Portail de depot de pieces</title>
+    <style>
+      /* Vendor-prefixed smoothing lives here rather than in the Chakra
+         theme, whose style types reject prefixed keys. Renders Inter at
+         the weight it was drawn for instead of a heavier fake. */
+      html {
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      /* Honour the OS setting everywhere, including the dialog keyframes
+         declared in the Chakra theme. Content still appears - only the
+         motion is removed. */
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+          scroll-behavior: auto !important;
+        }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

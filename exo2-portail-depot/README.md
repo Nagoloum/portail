@@ -513,6 +513,12 @@ docker manifest inspect ghcr.io/nagoloum/portail-backend:4e161d4
 C'est la version deployee sur le domaine de demonstration : `./install.sh`
 sur une machine vierge installe exactement ce qui tourne en ligne.
 
+Les commits posterieurs a `4e161d4` ne touchent que `infra/`, `install.sh`
+et la documentation, qui ne sont pas embarques dans les images (les
+Dockerfiles ne copient que `backend/` et `frontend/`) - le tag reste donc
+exact. Un changement dans l'un de ces deux dossiers imposerait, lui, de
+republier.
+
 ### Serveur partage : routage
 
 Le serveur fourni est partage : un proxy frontal ecoute les ports 80/443

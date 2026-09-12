@@ -31,7 +31,7 @@ COMPOSE=(docker compose --env-file .env "${COMPOSE_FILES[@]}")
 if [[ ! -f .env ]]; then
   log "Aucun .env trouve, generation a partir de .env.example (secrets aleatoires)..."
   cp .env.example .env
-  for key in DB_PASSWORD JWT_SECRET PIN_PEPPER MINIO_ROOT_PASSWORD GRAFANA_ADMIN_PASSWORD; do
+  for key in DB_PASSWORD JWT_SECRET PIN_PEPPER MINIO_ROOT_PASSWORD GRAFANA_ADMIN_PASSWORD PROMETHEUS_BASIC_AUTH_PASSWORD; do
     secret=$(openssl rand -hex 24)
     # portable in-place sed (works on both GNU and BSD/macOS sed)
     sed -i.bak "s/^${key}=.*/${key}=${secret}/" .env && rm -f .env.bak

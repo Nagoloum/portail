@@ -411,10 +411,19 @@ Le serveur partage ne nous route qu'un seul hostname (voir "Routage"), donc
 Grafana et Prometheus sortent sur le meme domaine, sous `/grafana/` et
 `/prometheus/`. Ils n'ont pas du tout la meme surface d'authentification :
 
-| | Auth | D'ou elle vient |
-|---|---|---|
-| Grafana | Login Grafana, compte admin unique (`GF_USERS_ALLOW_SIGN_UP=false`) | L'application elle-meme |
-| Prometheus | Basic auth nginx | **Ajoutee par le edge** - Prometheus n'en a aucune |
+| | Auth | D'ou elle vient | Identifiants |
+|---|---|---|---|
+| Grafana | Login Grafana, compte admin unique (`GF_USERS_ALLOW_SIGN_UP=false`) | L'application elle-meme | `.env` : `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD` |
+| Prometheus | Basic auth nginx | **Ajoutee par le edge** - Prometheus n'en a aucune | `.env` : `PROMETHEUS_BASIC_AUTH_USER` / `PROMETHEUS_BASIC_AUTH_PASSWORD` |
+
+Les deux jeux d'identifiants vivent donc au meme endroit que tous les
+autres secrets, et `install.sh` les genere aleatoirement de la meme facon.
+La seule asymetrie est mecanique : Grafana lit son mot de passe dans une
+variable d'environnement, alors que la directive nginx `auth_basic_user_file`
+attend un *fichier*. `infra/nginx/generate-prometheus-htpasswd.sh` fait ce
+seul pont - il lit `.env` et ecrit le bcrypt correspondant dans
+`infra/nginx/prometheus.htpasswd` (jamais commite). Apres une rotation du
+mot de passe dans `.env`, relancer le script avec `--force`.
 
 C'est la correction la plus importante de cette passe. Prometheus etait
 publie tel quel : `GET /prometheus/api/v1/query` repondait `200` a
@@ -544,10 +553,11 @@ service `edge` (nginx) qui :
 # Voir l'exemple chiffre en bas de .env.example.
 
 # Identifiant basic auth pour /prometheus/ (Prometheus n'a aucune
-# authentification a lui - voir "Observabilite"). A faire une fois : le
-# edge refuse de demarrer sans ce fichier, ce qui est le bon mode d'echec.
-infra/nginx/generate-prometheus-htpasswd.sh          # mot de passe aleatoire, affiche une fois
-# ou : infra/nginx/generate-prometheus-htpasswd.sh <user> <password>
+# authentification a lui - voir "Observabilite"). Les identifiants sont
+# dans .env comme ceux de Grafana : ce script ne fait que produire le
+# fichier bcrypt que nginx sait lire.
+infra/nginx/generate-prometheus-htpasswd.sh
+# apres rotation du mot de passe dans .env : --force pour regenerer
 
 infra/certbot/init-letsencrypt.sh   # obtient le premier certificat (staging par defaut)
 # une fois valide : LETSENCRYPT_STAGING=false dans .env, puis relancer le script

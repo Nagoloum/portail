@@ -29,7 +29,13 @@ fi
 # -B = bcrypt (not the default MD5 crypt), -b = password on the command
 # line, -n = write to stdout instead of a file inside the container.
 docker run --rm httpd:2.4-alpine htpasswd -Bbn "$USER" "$PASSWORD" > prometheus.htpasswd
-chmod 600 prometheus.htpasswd
+
+# 644, not 600: the file is bind-mounted into the edge container, where the
+# nginx workers run as uid 101 and not as the host user who owns it. With
+# 600 they get "open() ... failed (13: Permission denied)" and nginx answers
+# 500 to every request on /prometheus/ - an authenticated caller included.
+# What the file holds is a bcrypt hash, not the password.
+chmod 644 prometheus.htpasswd
 
 echo "prometheus.htpasswd cree."
 echo "  utilisateur : $USER"

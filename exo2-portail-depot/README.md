@@ -371,17 +371,22 @@ Le perimetre est volontairement restreint a ce qui reflete la sante du
 | `public_link_access_total{result}` | Usage cote client (ok/expire/introuvable) |
 
 Deux de ces series etaient documentees ici mais **jamais alimentees** :
-`deposit_requests_created_total` n'etait incremente nulle part (plat a zero
-pour toujours), et `deposit_files_rejected_total{reason="size"}` non plus,
-parce que multer refuse un fichier trop lourd pendant le streaming, avant
-que le controleur ne s'execute. Cette erreur n'etant pas une
-`HttpException`, Nest repondait 500 : la maladresse la plus banale de
-l'utilisateur - "mon scan fait 30 Mo" - ressemblait a un plantage serveur,
-n'etait pas auditee et ne comptait nulle part. Un filtre
-(`public/multer-exception.filter.ts`) la traduit maintenant en 413 avec un
-message utilisable, une ligne d'audit et le compteur correspondant. Une
-metrique qu'on documente sans jamais l'incrementer est pire qu'une metrique
-absente : elle affiche un zero rassurant.
+
+- `deposit_requests_created_total` n'etait incremente nulle part - plat a
+  zero pour toujours, alors que le tableau ci-dessus le presente comme la
+  mesure de l'usage cote avocat.
+- `deposit_files_rejected_total{reason="size"}` non plus : multer avorte un
+  fichier trop lourd pendant le streaming, avant que le controleur ne
+  s'execute, donc ni notre compteur ni notre journal d'audit ne voyaient
+  passer le rejet le plus banal de tous ("mon scan fait 30 Mo"). Le code
+  HTTP, lui, etait deja correct - `@nestjs/platform-express` traduit
+  `LIMIT_FILE_SIZE` en 413 tout seul. `public/payload-too-large.filter.ts`
+  se greffe donc uniquement pour ajouter la ligne d'audit, le compteur, et
+  un message en francais a la place du « File too large » de multer.
+
+Une metrique documentee mais jamais incrementee est pire qu'une metrique
+absente : elle affiche un zero rassurant, et une alerte construite dessus
+ne se declenchera jamais.
 
 **Alertes** (`infra/prometheus/alerts.yml`) : `BackendDown` (l'API ne
 repond plus, 1 min), `HighErrorRate` (>5% de 5xx sur 5 min),

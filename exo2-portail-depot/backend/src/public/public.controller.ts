@@ -18,7 +18,7 @@ import { CurrentPublicSession } from '../auth/decorators/current-public-session.
 import { PublicJwtPayload } from '../auth/jwt-payload.type';
 import { PublicService } from './public.service';
 import { UnlockDto } from './dto/unlock.dto';
-import { MulterExceptionFilter } from './multer-exception.filter';
+import { PayloadTooLargeFilter } from './payload-too-large.filter';
 import { AuditContext } from '../audit/audit.service';
 
 function auditContext(req: Request): AuditContext {
@@ -44,7 +44,7 @@ export class PublicController {
   // public.module.ts) so they are configured once, from validated config.
   @Post('files')
   @UseGuards(PublicAuthGuard)
-  @UseFilters(MulterExceptionFilter)
+  @UseFilters(PayloadTooLargeFilter)
   @UseInterceptors(FileInterceptor('file'))
   uploadFile(
     @CurrentPublicSession() session: PublicJwtPayload,

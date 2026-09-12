@@ -281,7 +281,16 @@ export class PublicService {
     await this.audit.record(requestId, AuditAction.FILE_REJECTED, ctx, { reason: auditReason, ...metadata });
   }
 
-  /** Called by the multer size filter, which rejects before we see a buffer. */
+  /** Surfaced for the 413 message; multer's own limit comes from the same key. */
+  get maxFileSizeMb(): number {
+    return this.config.get<number>('MAX_FILE_SIZE_MB', 20);
+  }
+
+  /**
+   * Called by PayloadTooLargeFilter: multer aborts the upload before this
+   * service ever sees a buffer, so the rejection has to be journalled and
+   * counted from there.
+   */
   async recordOversizedUpload(requestId: string, ctx: AuditContext): Promise<void> {
     await this.rejectUpload(requestId, ctx, 'size', 'file_too_large');
   }

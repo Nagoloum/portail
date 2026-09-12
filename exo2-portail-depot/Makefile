@@ -23,7 +23,7 @@ ps:
 test: ## Backend unit tests (business logic: expiry, PIN, status transitions)
 	cd backend && npm test
 
-# Runs exactly what .github/workflows/ci.yml runs, locally. Actions is
+# Runs exactly what ../.github/workflows/ci.yml runs, locally. Actions is
 # disabled on the account that owns this repo (see README, "Registre
 # d'images"), so the pipeline cannot run on push; this target is the same
 # sequence, reproducible on any machine.

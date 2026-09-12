@@ -9,6 +9,6 @@ coverage/
 .DS_Store
 
 # infra runtime state (certs, volumes if ever bind-mounted)
-infra/certbot/conf/
-infra/certbot/www/
+exo2-portail-depot/infra/certbot/conf/
+exo2-portail-depot/infra/certbot/www/
 *.tsbuildinfo

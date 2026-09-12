@@ -11,4 +11,8 @@ coverage/
 # infra runtime state (certs, volumes if ever bind-mounted)
 exo2-portail-depot/infra/certbot/conf/
 exo2-portail-depot/infra/certbot/www/
+# Basic-auth credential for /prometheus/, generated per deployment by
+# infra/nginx/generate-prometheus-htpasswd.sh - a bcrypt hash, but still a
+# credential and still per-environment.
+exo2-portail-depot/infra/nginx/prometheus.htpasswd
 *.tsbuildinfo

@@ -137,7 +137,7 @@ quelle, complétée par les routes necessaires a un vrai parcours :
 |---|---|---|
 | `POST /auth/login` | - | Connexion avocat, retourne un JWT |
 | `POST /requests` | JWT avocat | Cree une demande, retourne **le PIN en clair une seule fois** |
-| `GET /requests` | JWT avocat | Liste des demandes avec statut/progression calcules |
+| `GET /requests?page=&limit=` | JWT avocat | Liste **paginee** des demandes avec statut/progression calcules |
 | `GET /requests/:id` | JWT avocat | Detail + liste des pieces deposees |
 | `POST /public/:token/unlock` | - | Verifie le PIN, retourne un jeton de session scope a la demande |
 | `GET /public/:token/status` | jeton public | Statut/progression courant (polling apres upload) |
@@ -161,6 +161,19 @@ avec des fichiers plafonnes a 20 Mo : le backend bufferise en memoire
 (jamais sur disque, `multer.memoryStorage()`) et relaie vers MinIO par le
 reseau docker interne, qui reste ainsi jamais expose. Documente comme
 limite connue plus bas.
+
+`GET /requests` est **pagine** (`?page=1&limit=20`, 100 maximum) et renvoie
+une enveloppe plutot qu'un tableau nu :
+
+```json
+{ "items": [ ... ], "total": 42, "page": 1, "limit": 20, "hasMore": true }
+```
+
+Le tableau nu aurait suffi au rendu, mais la liste d'un avocat grandit sans
+borne et rien ne l'arretait. Voir "Performance" pour le detail. Le `limit`
+venant de la query string, il est **borne cote serveur** : sans plafond,
+`?limit=1000000` reconstitue exactement l'endpoint non pagine qu'on vient
+de remplacer.
 
 ## Modele de donnees
 
@@ -229,6 +242,67 @@ la base seule ne suffit pas a le retrouver hors-ligne (voir
 - **Audit** : chaque acces a un lien public (reussi, PIN faux,
   verrouillage, upload accepte/rejete) est journalise avec IP + user-agent
   dans `audit_logs`.
+- **En-tetes** : `helmet` sur l'API (nosniff, `Referrer-Policy`,
+  `frame-ancestors`, HSTS) et une **CSP explicite** sur le nginx qui sert le
+  SPA (`frontend/nginx.conf`), ecrite d'apres ce que l'application charge
+  reellement : `script-src 'self'` (bundle Vite, pas de CDN, pas d'`eval`),
+  Google Fonts en `style-src`/`font-src`, `frame-ancestors 'none'` - on ne
+  met pas un formulaire de saisie de PIN dans une iframe tierce.
+  `'unsafe-inline'` reste necessaire en `style-src` : Emotion, le moteur de
+  Chakra, injecte ses `<style>` a l'execution, et un nonce supposerait un
+  HTML rendu par requete, ce qu'un SPA statique n'est pas.
+- **CORS** : restreint a `FRONTEND_PUBLIC_BASE_URL` (plus `localhost:5173`
+  hors production). En production la question ne se pose pas - le SPA et
+  l'API sont sur la meme origine derriere nginx - mais le `cors: true`
+  precedent valait `Access-Control-Allow-Origin: *` : n'importe quelle page
+  du web pouvait appeler cette API depuis le navigateur d'un visiteur.
+- **Enumeration** : `GET /requests/:id` filtre sur `lawyerId` **dans le
+  `WHERE`** et repond 404, au lieu de lire puis comparer et repondre 403.
+  Un 403 distinguait "cette demande existe mais n'est pas a vous" de "elle
+  n'existe pas", ce qui suffit a sonder les identifiants existants. Un
+  `:id` malforme est refuse en 400 par `ParseUUIDPipe` avant d'atteindre
+  postgres, qui repondait sinon une erreur de driver en 500.
+- **Prometheus** : protege par authentification basic au niveau du edge
+  nginx (voir "Observabilite" et "Etapes sur le serveur"). Il n'a aucune
+  authentification native, et publie tel quel il repondait `/api/v1/query`
+  a tout Internet.
+
+## Performance
+
+Trois choses ici, dans l'ordre ou elles auraient fait mal :
+
+**Pagination.** `GET /requests` chargeait *toutes* les demandes d'un avocat
+et, via `relations: { files: true }`, *toutes les pieces de chacune* - pour
+n'en tirer qu'un compteur "2 sur 4" affiche sur une carte. Le cout d'un
+appel croissait avec l'historique complet du cabinet et avec le nombre de
+pieces deposees. L'endpoint est desormais pagine (20 par defaut, 100 max) et
+le dashboard consomme les pages avec un bouton "Charger plus"
+(`useInfiniteQuery`).
+
+**Comptage en SQL, pas en JavaScript.** Le compteur est calcule par
+`loadRelationCountAndMap` avec un filtre sur `status = 'UPLOADED'` : une
+requete groupee pour la page entiere, au lieu d'hydrater une ligne par
+fichier pour ensuite les compter en memoire. Une page coute maintenant deux
+requetes quel que soit le nombre de pieces. Cote parcours client, `summarize()`
+faisait un `COUNT` puis un `SELECT` de la meme liste : le compte est la
+longueur de la liste, une requete suffit.
+
+**Index alignes sur les requetes reellement emises**
+(`1700000001000-TuneIndexes.ts`) :
+
+| Index | Requete qu'il sert |
+|---|---|
+| `deposit_requests (lawyerId, createdAt DESC, id DESC)` | la liste paginee - l'ancien index sur `(lawyerId)` seul trouvait les lignes mais pas dans l'ordre, donc chaque page triait tout l'historique de l'avocat |
+| `deposit_files (requestId, status)` | tous les comptages/listes de pieces, qui filtrent toujours sur les deux colonnes |
+
+Les deux anciens index simple-colonne sont supprimes plutot que conserves :
+`(lawyerId)` et `(requestId)` sont des prefixes gauches des nouveaux, donc
+redondants en lecture et payants en ecriture.
+
+Le tri ajoute `id DESC` apres `createdAt DESC` : `createdAt` n'est pas
+unique, donc a lui seul il ne definit pas une pagination stable - deux
+demandes creees dans la meme milliseconde pouvaient s'echanger entre la
+page 1 et la page 2.
 
 ## Strategie de tests
 
@@ -244,23 +318,40 @@ pouvoir controler l'horloge et l'etat sans base de donnees :
   bcrypt+pepper, sensibilite au pepper).
 - `public/public.service.spec.ts` - integration au niveau service (repository
   mocke) du flux `unlock` complet : succes, echec, verrouillage apres N
-  tentatives, refus sur lien expire.
+  tentatives, refus sur lien expire. Et du flux **depot** : passage a
+  COMPLETE sur la derniere piece, refus de la piece dont la place a ete
+  prise entre la pre-verification et le commit (la course decrite plus
+  bas), nettoyage de l'objet MinIO dans ce cas, rejet d'un executable
+  renomme `.pdf` avant tout envoi vers le bucket.
+- `auth/token-isolation.spec.ts` - les deux garanties que le README mettait
+  en avant sans que rien ne les verifie : un jeton public rejoue sur une
+  route avocat est refuse (et reciproquement), et une session publique
+  minee pour un lien est refusee sur un autre lien. Une signature valide
+  reste une signature valide : si le claim `type` ou la comparaison
+  jeton/URL disparaissaient, tous les autres tests resteraient verts.
+- `common/pagination.spec.ts` - bornage de la pagination, dont le cas qui
+  justifie la fonction : `?limit=1000000` doit retomber sur le plafond.
 - `files/file-validation.util.spec.ts` - allow-list de types et detection
   par signature binaire, dont le cas qui motive ce controle (executable
   renome `.pdf`) et les buffers trop courts.
 - `database/entity-metadata.spec.ts` - construit les metadonnees TypeORM
   sans base de donnees.
 
-Ces deux derniers fichiers sont des **tests de non-regression ecrits apres
-coup**, et c'est la limite qu'ils documentent : les specs d'origine
-testaient de la logique pure avec des repositories mockes, donc rien
-n'exercait la couche de mapping ni le controle de type. Deux bugs ont
+`file-validation` et `entity-metadata` sont des **tests de non-regression
+ecrits apres coup**, et c'est la limite qu'ils documentent : les specs
+d'origine testaient de la logique pure avec des repositories mockes, donc
+rien n'exercait la couche de mapping ni le controle de type. Deux bugs ont
 survecu a une suite verte et ne sont apparus qu'en lancant la stack
 (`DataTypeNotSupportedError` au demarrage, `ERR_PACKAGE_PATH_NOT_EXPORTED`
 a chaque depot). Tester la logique metier isolement est necessaire et pas
 suffisant : il faut au moins un test par couche d'adaptation.
 
-`cd backend && npm test` (37 tests), ou `make verify` pour rejouer
+`token-isolation` illustre la meme lecon sous un autre angle : une suite
+verte ne dit rien des invariants que personne n'a pense a ecrire. Les
+regles les plus critiques d'une application sont souvent celles qu'aucun
+test ne touche, precisement parce qu'elles "vont de soi".
+
+`cd backend && npm test` (60 tests), ou `make verify` pour rejouer
 exactement la sequence de `../.github/workflows/ci.yml` (installation propre,
 build et tests des deux applications). Le workflow lui-meme n'a jamais pu
 s'executer : voir "Registre d'images" pour le diagnostic.
@@ -279,6 +370,19 @@ Le perimetre est volontairement restreint a ce qui reflete la sante du
 | `deposit_requests_created_total` | Usage cote avocat |
 | `public_link_access_total{result}` | Usage cote client (ok/expire/introuvable) |
 
+Deux de ces series etaient documentees ici mais **jamais alimentees** :
+`deposit_requests_created_total` n'etait incremente nulle part (plat a zero
+pour toujours), et `deposit_files_rejected_total{reason="size"}` non plus,
+parce que multer refuse un fichier trop lourd pendant le streaming, avant
+que le controleur ne s'execute. Cette erreur n'etant pas une
+`HttpException`, Nest repondait 500 : la maladresse la plus banale de
+l'utilisateur - "mon scan fait 30 Mo" - ressemblait a un plantage serveur,
+n'etait pas auditee et ne comptait nulle part. Un filtre
+(`public/multer-exception.filter.ts`) la traduit maintenant en 413 avec un
+message utilisable, une ligne d'audit et le compteur correspondant. Une
+metrique qu'on documente sans jamais l'incrementer est pire qu'une metrique
+absente : elle affiche un zero rassurant.
+
 **Alertes** (`infra/prometheus/alerts.yml`) : `BackendDown` (l'API ne
 repond plus, 1 min), `HighErrorRate` (>5% de 5xx sur 5 min),
 `PinBruteForceSuspected` (taux d'echecs de PIN eleve et soutenu),
@@ -295,6 +399,31 @@ partie de la surface publique.
 Grafana est provisionne automatiquement (datasource + dashboard "Portail -
 Vue d'ensemble", `infra/grafana/provisioning/`) : aucune configuration
 manuelle apres `./install.sh`.
+
+### Acces aux deux UI en production
+
+Le serveur partage ne nous route qu'un seul hostname (voir "Routage"), donc
+Grafana et Prometheus sortent sur le meme domaine, sous `/grafana/` et
+`/prometheus/`. Ils n'ont pas du tout la meme surface d'authentification :
+
+| | Auth | D'ou elle vient |
+|---|---|---|
+| Grafana | Login Grafana, compte admin unique (`GF_USERS_ALLOW_SIGN_UP=false`) | L'application elle-meme |
+| Prometheus | Basic auth nginx | **Ajoutee par le edge** - Prometheus n'en a aucune |
+
+C'est la correction la plus importante de cette passe. Prometheus etait
+publie tel quel : `GET /prometheus/api/v1/query` repondait `200` a
+n'importe qui, exposant la volumetrie metier et surtout
+`pin_verification_total{result="failure"}` - un attaquant pouvait suivre sa
+propre tentative de brute-force en direct. "Ce n'est que de la lecture"
+n'est pas un argument quand la lecture porte sur l'efficacite d'une
+attaque en cours.
+
+Grafana continue de scraper Prometheus par le reseau docker interne, sans
+passer par le edge : ajouter le mot de passe ne touche pas aux dashboards.
+
+En local (`./install.sh`) la question ne se pose pas : ni le edge ni la
+basic auth n'existent, tout est sur `127.0.0.1`.
 
 **Limite assumee** : Alertmanager est cable et route les alertes
 (visibles dans son UI/API, `http://localhost:${ALERTMANAGER_PORT}`), mais
@@ -399,6 +528,12 @@ service `edge` (nginx) qui :
 # les prendre reviendrait a casser le deploiement d'un autre candidat.
 # Voir l'exemple chiffre en bas de .env.example.
 
+# Identifiant basic auth pour /prometheus/ (Prometheus n'a aucune
+# authentification a lui - voir "Observabilite"). A faire une fois : le
+# edge refuse de demarrer sans ce fichier, ce qui est le bon mode d'echec.
+infra/nginx/generate-prometheus-htpasswd.sh          # mot de passe aleatoire, affiche une fois
+# ou : infra/nginx/generate-prometheus-htpasswd.sh <user> <password>
+
 infra/certbot/init-letsencrypt.sh   # obtient le premier certificat (staging par defaut)
 # une fois valide : LETSENCRYPT_STAGING=false dans .env, puis relancer le script
 
@@ -412,7 +547,9 @@ Le renouvellement est automatique (conteneur `certbot` avec une boucle
 
 Ce qui vit sur le serveur : `infra/` et `.env`, rien d'autre. Pas de code
 source, pas de `git clone`, pas de build - `docker compose pull` uniquement
-(verifiable : `ls ~/portail` n'y contient que `infra/` et `.env`).
+(verifiable : `ls ~/portail` n'y contient que `infra/` et `.env`). Le
+`prometheus.htpasswd` genere ci-dessus vit dans `infra/nginx/` sur le
+serveur uniquement, et n'est jamais commite (`.gitignore`).
 
 Ports reellement alloues pour ce deploiement (plage 21700-21799) :
 `21700` edge HTTP, `21701` edge HTTPS, `21702` frontend, `21703` backend,
@@ -430,7 +567,17 @@ Ports reellement alloues pour ce deploiement (plage 21700-21799) :
   qui levait une exception a chaque depot) n'ont ete trouvees qu'en lancant
   reellement `./install.sh`. Deux tests de non-regression comblent les deux
   dernieres ; un vrai test e2e (Testcontainers ou un job CI avec services
-  postgres+minio) serait la suite logique.
+  postgres+minio) serait la suite logique. La passe de revue decrite dans
+  "Performance" et "Securite" a ajoute des tests de service sur le depot
+  (course sur `requiredCount`, nettoyage du bucket, isolation des deux
+  familles de jetons), mais aucun ne traverse encore HTTP.
+- **La pagination n'est pas curseur** : `LIMIT/OFFSET` avec un tri
+  `(createdAt DESC, id DESC)`. C'est stable pour les pages deja chargees,
+  mais une demande creee pendant la consultation decale les pages
+  suivantes, et l'`OFFSET` se degrade sur de tres grandes profondeurs. Une
+  pagination par curseur (keyset, `WHERE (createdAt, id) < (...)`) serait
+  la suite logique ; l'index composite en place la supporte deja telle
+  quelle.
 - **Verification de type plutot qu'antivirus** : les fichiers sont
   verifies par allow-list + signature binaire (magic bytes), pas par un
   moteur antivirus (ClamAV). Un fichier PDF/JPG/PNG structurellement valide

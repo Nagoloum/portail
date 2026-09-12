@@ -137,5 +137,32 @@ describe('RequestStatusService', () => {
         }),
       ).toBe(false);
     });
+
+    // The cap must hold on the count itself, not on a COMPLETE flag that
+    // some earlier write was supposed to have set: this row is at 4 of 4
+    // and still persisted as PENDING, and it must not take a fifth piece.
+    it('rejects uploads once the target is reached, even if still persisted PENDING', () => {
+      expect(
+        service.isAcceptingUploads({
+          persistedStatus: DepositRequestStatus.PENDING,
+          expiresAt: FUTURE,
+          uploadedCount: 4,
+          requiredCount: 4,
+          now: NOW,
+        }),
+      ).toBe(false);
+    });
+
+    it('still accepts the very last piece', () => {
+      expect(
+        service.isAcceptingUploads({
+          persistedStatus: DepositRequestStatus.PENDING,
+          expiresAt: FUTURE,
+          uploadedCount: 3,
+          requiredCount: 4,
+          now: NOW,
+        }),
+      ).toBe(true);
+    });
   });
 });

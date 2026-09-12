@@ -39,6 +39,11 @@ services:
       DOMAIN: ${DOMAIN:?set DOMAIN in .env, e.g. depot.example.com}
     volumes:
       - ./nginx/edge.conf.template:/etc/nginx/templates/default.conf.template:ro
+      # Credentials for /prometheus/, which has no auth of its own. Created
+      # by infra/nginx/generate-prometheus-htpasswd.sh and never committed
+      # (see .gitignore) - the edge refuses to start without it, which is
+      # the intended failure mode: better a down dashboard than an open one.
+      - ./nginx/prometheus.htpasswd:/etc/nginx/prometheus.htpasswd:ro
       - certbot_conf:/etc/letsencrypt:ro
       - certbot_www:/var/www/certbot:ro
     ports:

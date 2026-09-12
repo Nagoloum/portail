@@ -1,8 +1,8 @@
 import { Box, Button, Heading, HStack, SimpleGrid, Spinner, Text, VStack } from '@chakra-ui/react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useState } from 'react';
 import { FiCheck, FiPlus } from 'react-icons/fi';
-import { createRequest, listRequests } from '../api/requests';
+import { REQUESTS_PAGE_SIZE, createRequest, listRequests } from '../api/requests';
 import { CreateRequestResult } from '../api/types';
 import { LawyerLayout } from '../components/LawyerLayout';
 import { RequestCard } from '../components/RequestCard';
@@ -17,7 +17,26 @@ type Step = 'form' | 'created';
 
 export function DashboardPage() {
   const queryClient = useQueryClient();
-  const { data: requests, isLoading, isError } = useQuery({ queryKey: ['requests'], queryFn: listRequests });
+
+  // The list endpoint is paginated, so the dashboard pulls one page at a
+  // time and appends on demand rather than asking for a lawyer's entire
+  // history on every mount.
+  const {
+    data,
+    isLoading,
+    isError,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['requests'],
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => listRequests(pageParam, REQUESTS_PAGE_SIZE),
+    getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
+  });
+
+  const requests = data?.pages.flatMap((p) => p.items);
+  const total = data?.pages[0]?.total ?? 0;
 
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>('form');
@@ -82,13 +101,30 @@ export function DashboardPage() {
         )}
 
         {!isLoading && !isError && requests && requests.length > 0 && (
-          <SimpleGrid columns={{ base: 1, md: 2 }} gap="4">
-            {requests.map((request, i) => (
-              <Reveal key={request.id} delayMs={i * 40}>
-                <RequestCard request={request} />
-              </Reveal>
-            ))}
-          </SimpleGrid>
+          <>
+            <SimpleGrid columns={{ base: 1, md: 2 }} gap="4">
+              {requests.map((request, i) => (
+                <Reveal key={request.id} delayMs={(i % REQUESTS_PAGE_SIZE) * 40}>
+                  <RequestCard request={request} />
+                </Reveal>
+              ))}
+            </SimpleGrid>
+
+            {hasNextPage && (
+              <VStack gap="2" pt="2">
+                <Button
+                  variant="outline"
+                  onClick={() => fetchNextPage()}
+                  disabled={isFetchingNextPage}
+                >
+                  {isFetchingNextPage ? 'Chargement...' : 'Charger plus'}
+                </Button>
+                <Text fontSize="xs" color="gray.solid">
+                  {requests.length} sur {total} demandes
+                </Text>
+              </VStack>
+            )}
+          </>
         )}
       </VStack>
 

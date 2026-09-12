@@ -7,20 +7,19 @@ import {
   Post,
   Req,
   UploadedFile,
+  UseFilters,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { memoryStorage } from 'multer';
 import { Request } from 'express';
 import { PublicAuthGuard } from '../auth/guards/public-auth.guard';
 import { CurrentPublicSession } from '../auth/decorators/current-public-session.decorator';
 import { PublicJwtPayload } from '../auth/jwt-payload.type';
 import { PublicService } from './public.service';
 import { UnlockDto } from './dto/unlock.dto';
+import { MulterExceptionFilter } from './multer-exception.filter';
 import { AuditContext } from '../audit/audit.service';
-
-const MAX_FILE_SIZE_BYTES = Number(process.env.MAX_FILE_SIZE_MB ?? 20) * 1024 * 1024;
 
 function auditContext(req: Request): AuditContext {
   return { ip: req.ip, userAgent: req.headers['user-agent'] ?? null };
@@ -41,14 +40,12 @@ export class PublicController {
     return this.publicService.getStatus(session.sub);
   }
 
+  // Storage and size limits come from MulterModule.registerAsync (see
+  // public.module.ts) so they are configured once, from validated config.
   @Post('files')
   @UseGuards(PublicAuthGuard)
-  @UseInterceptors(
-    FileInterceptor('file', {
-      storage: memoryStorage(), // never touches the app's local disk
-      limits: { fileSize: MAX_FILE_SIZE_BYTES },
-    }),
-  )
+  @UseFilters(MulterExceptionFilter)
+  @UseInterceptors(FileInterceptor('file'))
   uploadFile(
     @CurrentPublicSession() session: PublicJwtPayload,
     @UploadedFile() file: Express.Multer.File,

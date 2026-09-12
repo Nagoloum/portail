@@ -52,8 +52,17 @@ export class RequestStatusService {
   /**
    * A public link only accepts new uploads while it is PENDING: not
    * expired, and not already complete (nothing left to ask for).
+   *
+   * "Nothing left to ask for" is checked against the count directly, not
+   * only against the persisted COMPLETE flag. Relying on the flag alone
+   * made the cap depend on an earlier write having happened: a request
+   * sitting at 4 of 4 whose status had not been flipped yet would still
+   * have accepted a fifth piece.
    */
   isAcceptingUploads(input: StatusInput): boolean {
-    return this.computeEffectiveStatus(input) === DepositRequestStatus.PENDING;
+    if (this.computeEffectiveStatus(input) !== DepositRequestStatus.PENDING) {
+      return false;
+    }
+    return !this.isTargetReached(input.uploadedCount, input.requiredCount);
   }
 }

@@ -1,5 +1,14 @@
 export type RequestStatus = 'PENDING' | 'COMPLETE' | 'EXPIRED';
 
+/** Envelope returned by every paginated list endpoint. */
+export interface Paginated<T> {
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
+  hasMore: boolean;
+}
+
 export interface RequestSummary {
   id: string;
   title: string;

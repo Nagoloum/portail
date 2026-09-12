@@ -33,6 +33,10 @@ server {
   # Deposits are up to 20 Mo (see MAX_FILE_SIZE_MB) plus multipart overhead.
   client_max_body_size 25m;
 
+  # Only this edge terminates TLS, so HSTS is declared here (the frontend
+  # container answers plain HTTP on the docker network and must not).
+  add_header Strict-Transport-Security "max-age=15552000; includeSubDomains" always;
+
   location / {
     set $upstream_frontend frontend;
     proxy_pass http://$upstream_frontend:80;
@@ -44,8 +48,12 @@ server {
 
   # Observability, reachable on the same domain+port since only two ports
   # in our range are actually internet-routed (see README "Routage").
-  # Grafana/Prometheus own auth (Grafana login, see README) is the access
-  # control here - there is no third public hostname to hide them behind.
+  #
+  # Access control differs between the two because their capabilities do:
+  # Grafana has a real login of its own (GF_USERS_ALLOW_SIGN_UP=false, one
+  # admin account) so it is proxied as-is; Prometheus has NO authentication
+  # whatsoever, so nginx supplies it - see the /prometheus/ block.
+  #
   # No trailing slash on proxy_pass: the prefix is NOT stripped. Grafana
   # runs with GF_SERVER_SERVE_FROM_SUB_PATH=true and a root_url ending in
   # /grafana/, so it expects to receive the prefix. Stripping it made
@@ -67,6 +75,19 @@ server {
   # does not strip anything when the upstream is a variable (nginx then
   # forwards the URI untouched), so the rewrite does it explicitly.
   location /prometheus/ {
+    # Prometheus ships no authentication of its own: published like this it
+    # answered /api/v1/query to anyone on the internet, which handed out the
+    # deposit volumes and - worse - pin_verification_total{result="failure"},
+    # letting an attacker watch their own brute-force attempt land in real
+    # time. nginx is the only place left to put a credential, since the
+    # shared front proxy routes a single hostname to us (see README
+    # "Routage") and there is no second host to hide it behind.
+    #
+    # Grafana keeps scraping it over the docker network, not through here,
+    # so its dashboards are unaffected.
+    auth_basic "Prometheus";
+    auth_basic_user_file /etc/nginx/prometheus.htpasswd;
+
     # `set` must come before `rewrite ... break`: both run in the rewrite
     # phase, and `break` ends it - a `set` placed after never executes, and
     # nginx then proxies to an empty host ("no host in upstream :9090").

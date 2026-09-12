@@ -27,12 +27,21 @@ export function RequestCard({ request }: { request: RequestSummary }) {
       <HStack justify="space-between" align="flex-start" gap="3">
         <VStack align="flex-start" gap="1" minW="0">
           <RouterLink to={`/dossiers/${request.id}`}>
-            <HStack gap="1.5" color="text" _hover={{ color: 'primary' }} transition="color 0.15s ease">
-              <Text fontWeight="600" fontSize="md">
-                {request.title}
-              </Text>
-              <FiArrowRight aria-hidden />
-            </HStack>
+            {/* The arrow is inline in the text flow rather than a flex
+                sibling: on a narrow screen the title wraps to two lines,
+                and a centred sibling ended up floating beside them. */}
+            <Text
+              fontWeight="600"
+              fontSize="md"
+              color="text"
+              _hover={{ color: 'primary' }}
+              transition="color 0.15s ease"
+            >
+              {request.title}
+              <Box as="span" display="inline-flex" verticalAlign="middle" ml="1.5" mt="-0.5">
+                <FiArrowRight aria-hidden />
+              </Box>
+            </Text>
           </RouterLink>
           <HStack gap="1.5" color="gray.solid" fontSize="xs">
             <FiClock aria-hidden />

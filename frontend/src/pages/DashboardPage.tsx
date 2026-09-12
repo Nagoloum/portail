@@ -117,8 +117,7 @@ export function DashboardPage() {
                   max={50}
                   value={requiredCount}
                   onChange={(e) => setRequiredCount(Number(e.target.value))}
-                  flex="1"
-                  minW="32"
+                  fieldProps={{ flex: '1', minW: '36' }}
                 />
                 <TextField
                   label="Validite (jours)"
@@ -127,8 +126,7 @@ export function DashboardPage() {
                   max={90}
                   value={expiresInDays}
                   onChange={(e) => setExpiresInDays(Number(e.target.value))}
-                  flex="1"
-                  minW="32"
+                  fieldProps={{ flex: '1', minW: '36' }}
                 />
               </HStack>
 

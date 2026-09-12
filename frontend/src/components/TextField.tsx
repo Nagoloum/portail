@@ -1,13 +1,20 @@
-import { Input, InputProps, Text, VStack } from '@chakra-ui/react';
+import { Input, InputProps, StackProps, Text, VStack } from '@chakra-ui/react';
 
 interface TextFieldProps extends InputProps {
   label: string;
   error?: string;
+  /**
+   * Layout for the field as a whole. Kept separate on purpose: passing
+   * `flex` straight through to the Input made it a flex child of its own
+   * column wrapper, which collapsed its height - two number fields side
+   * by side ended up half as tall as the text field above them.
+   */
+  fieldProps?: StackProps;
 }
 
-export function TextField({ label, error, ...inputProps }: TextFieldProps) {
+export function TextField({ label, error, fieldProps, ...inputProps }: TextFieldProps) {
   return (
-    <VStack align="stretch" gap="1.5" w="full">
+    <VStack align="stretch" gap="1.5" w="full" {...fieldProps}>
       <Text as="label" fontSize="sm" fontWeight="500">
         {label}
       </Text>

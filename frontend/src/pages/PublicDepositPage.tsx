@@ -1,7 +1,9 @@
 import { Box, Heading, HStack, Text, VStack } from '@chakra-ui/react';
 import axios from 'axios';
 import { useState } from 'react';
+import { FiClock } from 'react-icons/fi';
 import { Dropzone } from '../components/Dropzone';
+import { CountPill } from '../components/CountPill';
 import { Alert } from '../components/Alert';
 import { FileRow, UploadItem } from '../components/FileRow';
 import { StatusBadge } from '../components/StatusBadge';
@@ -88,7 +90,7 @@ export function PublicDepositPage({ token, view, onViewChange }: PublicDepositPa
             size: file.size,
             progress: 0,
             status: 'error',
-            errorMessage: 'Format non autorise (PDF, JPG ou PNG uniquement)',
+            errorMessage: 'Format refuse. PDF, JPG ou PNG uniquement.',
           },
         }));
         continue;
@@ -96,7 +98,7 @@ export function PublicDepositPage({ token, view, onViewChange }: PublicDepositPa
       if (file.size > MAX_SIZE) {
         setUploads((prev) => ({
           ...prev,
-          [id]: { id, file, name: file.name, size: file.size, progress: 0, status: 'error', errorMessage: 'Fichier trop volumineux (20 Mo maximum)' },
+          [id]: { id, file, name: file.name, size: file.size, progress: 0, status: 'error', errorMessage: 'Fichier trop volumineux. 20 Mo maximum.' },
         }));
         continue;
       }
@@ -115,10 +117,13 @@ export function PublicDepositPage({ token, view, onViewChange }: PublicDepositPa
               <Heading size="md">{view.title}</Heading>
               <StatusBadge status={view.status} />
             </HStack>
-            <Text fontSize="sm" color="gray.solid">
-              {view.uploadedCount} piece{view.uploadedCount > 1 ? 's' : ''} sur {view.requiredCount} - expire le{' '}
-              {formatDateFr(view.expiresAt)}
-            </Text>
+            <HStack gap="2" wrap="wrap">
+              <CountPill uploaded={view.uploadedCount} required={view.requiredCount} />
+              <HStack gap="1.5" color="gray.solid" fontSize="xs">
+                <FiClock aria-hidden />
+                <Text>Expire le {formatDateFr(view.expiresAt)}</Text>
+              </HStack>
+            </HStack>
           </VStack>
 
           {view.status === 'COMPLETE' && (
